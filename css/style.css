@@ -113,14 +113,19 @@ h1, h2, h3, h4 {
 }
 
 .brand-mark {
-  width: auto; height: auto;
-  border-radius: 12px;
-  background: #004C97;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 6px 14px rgba(8, 31, 74, 0.25);
-  padding: 6px;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
 }
-.brand-mark img { width: 100%; height: auto; object-fit: contain; display: block; }
+
+.brand-mark img {
+  width: 150px;   /* ajusta el tamaño que quieras */
+  height: auto;
+  display: block;
+}
 
 .brand-text { display: flex; flex-direction: column; line-height: 1.2; }
 .brand-text strong { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: #fff; }
