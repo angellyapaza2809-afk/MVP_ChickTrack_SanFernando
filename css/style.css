@@ -12,8 +12,8 @@
 :root {
   /* Azules de marca */
   --navy: #004C97;
-  --navy-deep: #081f4a;
-  --navy-ink: #123a82;
+  --navy-deep: #004C97;
+  --navy-ink: #004C97;
 
   /* Fondo y superficies (tema claro) */
   --bg: #eef4fb;
