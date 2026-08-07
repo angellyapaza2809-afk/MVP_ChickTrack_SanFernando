@@ -33,7 +33,7 @@ function renderShell() {
   shell.innerHTML = `
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">SF</div>
+        <div class="brand-mark"><img src="assets/logo-mark.png" alt="San Fernando" /></div>
         <div class="brand-text">
           <strong>Ciclo Térmico BB</strong>
           <span>San Fernando · MVP</span>
