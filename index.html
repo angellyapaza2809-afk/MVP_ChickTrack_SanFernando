@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Panel general · Ciclo Térmico BB · San Fernando</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "dashboard";
+  window.PAGE_TITLE = "Panel general";
+  window.PAGE_SUBTITLE = "Estado en vivo del ciclo térmico: planta de incubación → tránsito → granja";
+</script>
+
+<template id="tpl-content">
+  <div class="grid grid-4" id="kpi-row"></div>
+
+  <div class="section-title">
+    <span class="eyebrow">CICLO</span> Cinta térmica del último viaje finalizado
+  </div>
+  <div class="card" id="ribbon-card"></div>
+
+  <div class="section-title">
+    <span class="eyebrow">HOY</span> Viajes programados y en curso
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>D.T. SAP</th>
+          <th>Ruta</th>
+          <th>Destino</th>
+          <th>Unidad / Placa</th>
+          <th>Estado</th>
+          <th>Salida prog.</th>
+          <th>Salida real</th>
+          <th class="num">Temp. carga</th>
+          <th class="num">Temp. llegada</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="trips-body"></tbody>
+    </table>
+  </div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="js/thermal-ribbon.js"></script>
+<script>
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const viajes = Store.getViajes();
+
+    // ---- KPIs ----
+    const enTransito = viajes.filter((v) => v.estado === "En Tránsito").length;
+    const finalizados = viajes.filter((v) => v.estado === "Finalizado" || v.estado === "En Granja");
+
+    const tempsCarga = viajes.flatMap((v) => v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+    const tempsLlegada = finalizados.flatMap((v) => (v.granja ? v.granja.muestrasLlegada.map((m) => m.tempCloacal) : []));
+    const promCarga = Store.promedio(tempsCarga);
+    const promLlegada = Store.promedio(tempsLlegada);
+    const desviacion = promCarga != null && promLlegada != null ? promLlegada - promCarga : null;
+
+    const fueraDeRango = tempsLlegada.filter((t) => Store.clasificarTemp(t) !== "optimo").length;
+    const pctFuera = tempsLlegada.length ? ((fueraDeRango / tempsLlegada.length) * 100).toFixed(0) : "—";
+
+    const mortalidades = finalizados.filter((v) => v.granja).map((v) => v.granja.mortalidad);
+    const mortProm = Store.promedio(mortalidades);
+
+    const kpis = [
+      {
+        label: "Viajes en tránsito",
+        value: enTransito,
+        cls: "warn",
+        delta: `${viajes.length} programados hoy`,
+      },
+      {
+        label: "Temp. cloacal — salida planta",
+        value: promCarga != null ? promCarga.toFixed(1) + "°C" : "—",
+        cls: "cool",
+        delta: `${tempsCarga.length} muestras registradas`,
+      },
+      {
+        label: "Temp. cloacal — llegada granja",
+        value: promLlegada != null ? promLlegada.toFixed(1) + "°C" : "—",
+        cls: desviacion != null && Math.abs(desviacion) > 0.6 ? "heat" : "cool",
+        delta:
+          desviacion != null
+            ? `Δ ${desviacion > 0 ? "+" : ""}${desviacion.toFixed(1)}°C vs. salida`
+            : "Sin datos aún",
+      },
+      {
+        label: "Mortalidad promedio recepción",
+        value: mortProm != null ? mortProm.toFixed(2) + "%" : "—",
+        cls: mortProm != null && mortProm > 0.4 ? "heat" : "cool",
+        delta: `${pctFuera}% de muestras fuera de rango óptimo`,
+      },
+    ];
+
+    document.getElementById("kpi-row").innerHTML = kpis
+      .map(
+        (k) => `
+      <div class="card kpi-card">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-value ${k.cls}">${k.value}</div>
+        <div class="kpi-delta">${k.delta}</div>
+      </div>`
+      )
+      .join("");
+
+    // ---- Cinta térmica del último finalizado ----
+    const ultimo = viajes.find((v) => v.estado === "Finalizado") || finalizados[0];
+    const ribbonCard = document.getElementById("ribbon-card");
+    if (ultimo) {
+      const promC = Store.promedio(ultimo.cargaPlanta.muestras.map((m) => m.tempCloacal));
+      const promL = ultimo.granja ? Store.promedio(ultimo.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
+      ribbonCard.innerHTML = `<div class="card-head">
+        <h3>${ultimo.dtSap} · ${ultimo.destino1} · ${ultimo.placa}</h3>
+        <span class="hint">Lote ${ultimo.edadLotes}</span>
+      </div><div id="ribbon-target"></div>`;
+      renderThermalRibbon(document.getElementById("ribbon-target"), [
+        { label: "Salida planta", sub: ultimo.horaSalidaReal || ultimo.horaSalidaPlan, temp: promC },
+        { label: "Tránsito (amb.)", sub: "unidad temperada", temp: Store.promedio(ultimo.transito.serie.map((s) => s.temp)) },
+        { label: "Llegada granja", sub: ultimo.horaLlegadaReal, temp: promL },
+      ]);
+    } else {
+      ribbonCard.innerHTML = `<div class="empty-state">Aún no hay viajes finalizados con datos completos.</div>`;
+    }
+
+    // ---- Tabla de viajes ----
+    const tbody = document.getElementById("trips-body");
+    tbody.innerHTML = viajes
+      .map((v) => {
+        const promC = Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+        const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
+        return `
+        <tr>
+          <td class="mono">${v.dtSap}</td>
+          <td>${v.ruta}</td>
+          <td>${v.destino1}</td>
+          <td>${v.unidad} · ${v.placa}</td>
+          <td>${Util.badgeEstado(v.estado)}</td>
+          <td class="mono">${v.horaSalidaPlan}</td>
+          <td class="mono">${v.horaSalidaReal || "—"}</td>
+          <td class="num">${promC != null ? Util.badgeTemp(promC) : "—"}</td>
+          <td class="num">${promL != null ? Util.badgeTemp(promL) : "—"}</td>
+          <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver ciclo →</a></td>
+        </tr>`;
+      })
+      .join("");
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

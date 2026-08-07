@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Detalle de viaje · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "dashboard";
+  window.PAGE_TITLE = "Detalle del viaje";
+  window.PAGE_SUBTITLE = "Trazabilidad completa del ciclo térmico de la unidad seleccionada";
+</script>
+
+<template id="tpl-content">
+  <div id="contenido"></div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="js/thermal-ribbon.js"></script>
+<script>
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+    const v = Store.getViaje(Util.qs("id"));
+    const cont = document.getElementById("contenido");
+    if (!v) {
+      cont.innerHTML = `<div class="empty-state">No se encontró el viaje. <a class="btn btn-sm" href="index.html">← Volver al panel</a></div>`;
+      return;
+    }
+
+    const promC = Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+    const promAmb = Store.promedio(v.transito.serie.map((s) => s.temp));
+    const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
+    const g = v.granja?.galpones?.[0];
+
+    cont.innerHTML = `
+      <div class="flex-between wrap" style="margin-bottom:16px;">
+        <div>
+          <h2 style="font-family:var(--font-display); font-size:19px;">${v.dtSap} · ${v.ruta}</h2>
+          <div class="muted" style="font-size:12.5px; margin-top:4px;">
+            ${v.planta} → ${v.destino1} · Lote ${v.edadLotes} · Unidad ${v.unidad} (${v.placa}) · Conductor: ${v.conductor}
+          </div>
+        </div>
+        ${Util.badgeEstado(v.estado)}
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-head"><h3>Cinta térmica del ciclo</h3><span class="hint">Fecha ${Util.fmtFecha(v.fecha)}</span></div>
+        <div id="ribbon"></div>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom:24px;">
+        <div class="card kpi-card">
+          <div class="kpi-label">① Temp. cloacal — salida planta</div>
+          <div class="kpi-value cool">${promC != null ? promC.toFixed(1) + "°C" : "—"}</div>
+          <div class="kpi-delta">${v.cargaPlanta.muestras.length} muestras · amb. unidad ${v.cargaPlanta.tempAmbienteUnidad ?? "—"}°C</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">② Temp. ambiente en tránsito</div>
+          <div class="kpi-value">${promAmb != null ? promAmb.toFixed(1) + "°C" : "—"}</div>
+          <div class="kpi-delta">${v.transito.serie.length} lecturas de sensor</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">③ Temp. cloacal — llegada granja</div>
+          <div class="kpi-value ${promL != null && promC != null && Math.abs(promL - promC) > 0.6 ? "heat" : "cool"}">${promL != null ? promL.toFixed(1) + "°C" : "—"}</div>
+          <div class="kpi-delta">${v.granja ? v.granja.muestrasLlegada.length + " muestras" : "Pendiente"}</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head"><h3>Recorrido — geocercas</h3></div>
+          <div class="geo-steps">
+            ${v.geocercas
+              .map(
+                (gc, i) => `
+              <div class="geo-step ${gc.estado === "Cruzada" ? "cruzada" : "pendiente"}">
+                <div class="rail"><div class="node"></div>${i < v.geocercas.length - 1 ? '<div class="line"></div>' : ""}</div>
+                <div class="content">
+                  <div class="name">${gc.nombre}</div>
+                  <div class="time">${gc.estado === "Cruzada" ? "Cruzada · " + gc.hora : "Pendiente"}</div>
+                </div>
+              </div>`
+              )
+              .join("")}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Condiciones del galpón de destino</h3></div>
+          ${
+            g
+              ? `<div class="grid grid-2" style="font-size:12.5px; gap:10px;">
+              <div><span class="faint">Galpón:</span> ${g.galpon}</div>
+              <div><span class="faint">Temp:</span> ${g.temp ?? "—"}°C</div>
+              <div><span class="faint">Humedad:</span> ${g.humedad ?? "—"}%</div>
+              <div><span class="faint">NH₃:</span> ${g.nh3 ?? "—"} ppm</div>
+              <div><span class="faint">Ventilación:</span> ${g.ventilacion ?? "—"} m/s</div>
+              <div><span class="faint">CO₂:</span> ${g.co2 ?? "—"} ppm</div>
+              <div><span class="faint">Iluminación:</span> ${g.iluminacion ?? "—"} lux</div>
+            </div>`
+              : `<div class="empty-state">Sin datos aún.</div>`
+          }
+          <hr class="divider" />
+          <div class="grid grid-2" style="font-size:12.5px; gap:10px;">
+            <div><span class="faint">Mortalidad:</span> ${v.granja?.mortalidad ?? "—"}%</div>
+            <div><span class="faint">Uniformidad:</span> ${v.granja?.uniformidadPct ?? "—"}%</div>
+            <div><span class="faint">Peso promedio:</span> ${v.granja?.pesoPromedioG ?? "—"} g</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-8" style="margin-top:22px;">
+        <a class="btn" href="planta.html?id=${v.id}">Ir a carga en planta</a>
+        <a class="btn" href="transito.html?id=${v.id}">Ir a tránsito</a>
+        <a class="btn" href="granja.html?id=${v.id}">Ir a granja</a>
+        <a class="btn btn-ghost" href="index.html">← Volver al panel</a>
+      </div>
+    `;
+
+    renderThermalRibbon(document.getElementById("ribbon"), [
+      { label: "Salida planta", sub: v.horaSalidaReal || v.horaSalidaPlan, temp: promC },
+      { label: "Tránsito (amb.)", sub: "unidad temperada", temp: promAmb },
+      { label: "Llegada granja", sub: v.horaLlegadaReal, temp: promL },
+    ]);
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

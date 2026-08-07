@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Programación (SAP) · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "programacion";
+  window.PAGE_TITLE = "Programación de viajes";
+  window.PAGE_SUBTITLE = "El área de Transporte carga la programación diaria (4:00 p.m. para el día siguiente) — hoy simulada vía transacción Z de SAP";
+</script>
+
+<template id="tpl-content">
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head">
+        <h3>Nuevo viaje</h3>
+        <span class="hint">Campos = transacción Z-SAP</span>
+      </div>
+      <form id="form-viaje">
+        <div class="grid grid-2">
+          <div class="field"><label>Fecha de servicio <span class="req">*</span></label><input type="date" name="fecha" required /></div>
+          <div class="field"><label>D.T. (ID viaje SAP) <span class="req">*</span></label><input class="mono" name="dtSap" placeholder="0080012350" required /></div>
+          <div class="field"><label>Ruta (SAP)</label><input class="mono" name="ruta" placeholder="R-014" /></div>
+          <div class="field"><label>Planta origen <span class="req">*</span></label><input name="planta" placeholder="Planta Incubación Lurín" required /></div>
+          <div class="field"><label>Destino 1 <span class="req">*</span></label><input name="destino1" placeholder="Granja Chincha Norte" required /></div>
+          <div class="field"><label>Destino 2</label><input name="destino2" placeholder="Opcional" /></div>
+          <div class="field"><label>Destino 3</label><input name="destino3" placeholder="Opcional" /></div>
+          <div class="field"><label>Producto</label><input name="producto" value="Pollo BB" readonly /></div>
+          <div class="field"><label>Cantidad producida</label><input class="mono" type="number" name="cantidad" placeholder="24000" /></div>
+          <div class="field"><label>Edad / Lotes</label><input name="edadLotes" placeholder="Lote 231-A" /></div>
+          <div class="field"><label>Galpón</label><input class="mono" name="galpon" placeholder="G-08" /></div>
+          <div class="field"><label>Punto de carga</label><input name="puntoCarga" placeholder="Andén 3" /></div>
+          <div class="field"><label>Unidad programada</label><input class="mono" name="unidad" placeholder="T-118" /></div>
+          <div class="field"><label>Placa</label><input class="mono" name="placa" placeholder="F4X-812" /></div>
+          <div class="field"><label>Conductor</label><input name="conductor" placeholder="Nombres completos" /></div>
+          <div class="field"><label>Hora salida planta (prog.)</label><input class="mono" type="time" name="horaSalidaPlan" /></div>
+          <div class="field"><label>Hora término de carga (prog.)</label><input class="mono" type="time" name="horaCargaFinPlan" /></div>
+          <div class="field"><label>Progr. máx. espera en destino (min)</label><input class="mono" type="number" name="esperaMaxMin" placeholder="25" /></div>
+          <div class="field"><label>Hora retorno planta (prog.)</label><input class="mono" type="time" name="horaRetornoPlan" /></div>
+          <div class="field"><label>Planta de retorno</label><input name="plantaRetorno" placeholder="Planta Incubación Lurín" /></div>
+        </div>
+        <button class="btn btn-primary" type="submit">Cargar programación</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Resumen del día</h3></div>
+      <div id="resumen-dia"></div>
+      <hr class="divider" />
+      <div class="card-head"><h3>Datos de origen</h3><span class="hint">as-is → to-be</span></div>
+      <p class="muted" style="font-size:12.5px; line-height:1.7;">
+        Este formulario reemplaza la carga manual de la hoja de ruta física.
+        En producción, estos campos llegan automáticamente desde la
+        transacción Z de SAP (programación de las 4:00 p.m.) y el D.T. queda
+        como llave para vincular temperatura cloacal, GPS/geocercas y
+        registro en granja de cada unidad.
+      </p>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="eyebrow">HOY</span> Viajes programados</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>D.T.</th><th>Fecha</th><th>Ruta</th><th>Origen</th><th>Destino</th>
+          <th>Unidad</th><th>Placa</th><th>Conductor</th><th>Salida prog.</th><th>Estado</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="body-viajes"></tbody>
+    </table>
+  </div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script>
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const today = new Date().toISOString().slice(0, 10);
+    document.querySelector('input[name="fecha"]').value = today;
+
+    function draw() {
+      const viajes = Store.getViajes();
+      const hoy = viajes.filter((v) => v.fecha === today);
+
+      document.getElementById("resumen-dia").innerHTML = `
+        <div class="grid grid-2" style="gap:10px;">
+          <div class="kpi-card"><div class="kpi-label">Viajes hoy</div><div class="kpi-value">${hoy.length}</div></div>
+          <div class="kpi-card"><div class="kpi-label">Unidades distintas</div><div class="kpi-value">${new Set(hoy.map(v=>v.unidad)).size}</div></div>
+          <div class="kpi-card"><div class="kpi-label">Destinos distintos</div><div class="kpi-value">${new Set(hoy.map(v=>v.destino1)).size}</div></div>
+          <div class="kpi-card"><div class="kpi-label">Total pollitos BB</div><div class="kpi-value">${hoy.reduce((a,v)=>a+(+v.cantidad||0),0).toLocaleString("es-PE")}</div></div>
+        </div>`;
+
+      document.getElementById("body-viajes").innerHTML = viajes
+        .map(
+          (v) => `
+        <tr>
+          <td class="mono">${v.dtSap}</td>
+          <td>${Util.fmtFecha(v.fecha)}</td>
+          <td>${v.ruta}</td>
+          <td>${v.planta}</td>
+          <td>${v.destino1}</td>
+          <td class="mono">${v.unidad}</td>
+          <td class="mono">${v.placa}</td>
+          <td>${v.conductor}</td>
+          <td class="mono">${v.horaSalidaPlan}</td>
+          <td>${Util.badgeEstado(v.estado)}</td>
+          <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver →</a></td>
+        </tr>`
+        )
+        .join("");
+    }
+
+    document.getElementById("form-viaje").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const viaje = Object.fromEntries(fd.entries());
+      viaje.producto = "Pollo BB";
+      viaje.estado = "Programado";
+      viaje.horaSalidaReal = "";
+      viaje.horaLlegadaReal = "";
+      Store.addViaje(viaje);
+      e.target.reset();
+      document.querySelector('input[name="fecha"]').value = today;
+      draw();
+    });
+
+    draw();
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

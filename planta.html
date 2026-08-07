@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carga en planta · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "planta";
+  window.PAGE_TITLE = "① Carga en planta de incubación";
+  window.PAGE_SUBTITLE = "Temperatura cloacal por muestra y temperatura ambiente de la unidad temperada, al momento de cargar el lote";
+</script>
+
+<template id="tpl-content">
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head"><h3>Seleccionar unidad a cargar</h3></div>
+      <div class="field">
+        <label>Viaje / D.T.</label>
+        <select id="select-viaje"></select>
+      </div>
+
+      <div id="viaje-detalle"></div>
+
+      <hr class="divider" />
+
+      <div class="flex-between" style="margin-bottom:10px;">
+        <h3 style="font-size:13.5px;">Muestras de temperatura cloacal</h3>
+        <button class="btn btn-sm" id="btn-add-muestra" type="button">+ Agregar muestra</button>
+      </div>
+      <div id="muestras-rows"></div>
+
+      <div class="grid grid-2" style="margin-top:14px;">
+        <div class="field">
+          <label>Temperatura ambiente de la unidad (°C)</label>
+          <input class="mono" type="number" step="0.1" id="input-temp-ambiente" placeholder="30.5" />
+        </div>
+        <div class="field">
+          <label>Hora de término de carga</label>
+          <input class="mono" type="time" id="input-hora-carga" />
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-guardar-planta" type="button">Guardar registro de carga</button>
+      <button class="btn" id="btn-marcar-salida" type="button">Marcar salida de planta →</button>
+      <p class="faint" id="msg-guardado" style="margin-top:10px; font-size:12px;"></p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Vista previa — cinta térmica de carga</h3></div>
+      <div id="ribbon-preview" class="empty-state">Selecciona un viaje para ver sus muestras.</div>
+    </div>
+  </div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="js/thermal-ribbon.js"></script>
+<script>
+  let muestraIdSeq = 1;
+  let muestrasActuales = [];
+
+  function pintarMuestras() {
+    document.getElementById("muestras-rows").innerHTML = muestrasActuales
+      .map(
+        (m, idx) => `
+      <div class="flex gap-8" style="margin-bottom:8px;" data-row="${m._id}">
+        <input class="mono" style="width:70px;" value="Muestra ${idx + 1}" disabled />
+        <input class="mono temp-input" type="number" step="0.1" placeholder="40.1" value="${m.tempCloacal ?? ""}" style="width:110px;" />
+        <button class="btn btn-sm btn-ghost" type="button" data-remove="${m._id}">✕</button>
+      </div>`
+      )
+      .join("");
+
+    document.querySelectorAll(".temp-input").forEach((inp, idx) => {
+      inp.addEventListener("input", () => {
+        muestrasActuales[idx].tempCloacal = inp.value ? parseFloat(inp.value) : null;
+        actualizarPreview();
+      });
+    });
+    document.querySelectorAll("[data-remove]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-remove");
+        muestrasActuales = muestrasActuales.filter((m) => m._id !== id);
+        pintarMuestras();
+        actualizarPreview();
+      });
+    });
+  }
+
+  function actualizarPreview() {
+    const cont = document.getElementById("ribbon-preview");
+    const validas = muestrasActuales.filter((m) => m.tempCloacal != null);
+    if (!validas.length) {
+      cont.innerHTML = `<div class="empty-state">Aún no hay muestras registradas.</div>`;
+      return;
+    }
+    cont.innerHTML = "";
+    renderThermalRibbon(
+      cont,
+      validas.map((m, i) => ({ label: `Muestra ${i + 1}`, temp: m.tempCloacal }))
+    );
+  }
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const select = document.getElementById("select-viaje");
+    const todos = Store.getViajes().filter((v) => v.estado !== "Finalizado");
+    Util.fillSelectViajes(select, todos, { placeholder: "Selecciona la unidad / D.T. a cargar…" });
+
+    const preId = Util.qs("id");
+    if (preId) select.value = preId;
+
+    function cargarViaje() {
+      const v = Store.getViaje(select.value);
+      const detalle = document.getElementById("viaje-detalle");
+      if (!v) {
+        detalle.innerHTML = "";
+        muestrasActuales = [];
+        pintarMuestras();
+        actualizarPreview();
+        return;
+      }
+      detalle.innerHTML = `
+        <div class="grid grid-2" style="font-size:12.5px; margin:10px 0;">
+          <div><span class="faint">Destino:</span> ${v.destino1}</div>
+          <div><span class="faint">Lote:</span> ${v.edadLotes}</div>
+          <div><span class="faint">Galpón origen:</span> ${v.galpon}</div>
+          <div><span class="faint">Unidad / Placa:</span> ${v.unidad} · ${v.placa}</div>
+          <div><span class="faint">Conductor:</span> ${v.conductor}</div>
+          <div><span class="faint">Estado actual:</span> ${Util.badgeEstado(v.estado)}</div>
+        </div>`;
+
+      muestrasActuales = (v.cargaPlanta.muestras || []).map((m) => ({ _id: "m" + muestraIdSeq++, tempCloacal: m.tempCloacal }));
+      if (!muestrasActuales.length) {
+        muestrasActuales = [1, 2, 3].map(() => ({ _id: "m" + muestraIdSeq++, tempCloacal: null }));
+      }
+      document.getElementById("input-temp-ambiente").value = v.cargaPlanta.tempAmbienteUnidad ?? "";
+      document.getElementById("input-hora-carga").value = v.cargaPlanta.horaRegistro || v.horaCargaFinPlan || "";
+      pintarMuestras();
+      actualizarPreview();
+    }
+
+    select.addEventListener("change", cargarViaje);
+    if (preId) cargarViaje();
+
+    document.getElementById("btn-add-muestra").addEventListener("click", () => {
+      muestrasActuales.push({ _id: "m" + muestraIdSeq++, tempCloacal: null });
+      pintarMuestras();
+    });
+
+    function guardar() {
+      const v = Store.getViaje(select.value);
+      if (!v) { alert("Selecciona un viaje primero."); return null; }
+      const muestras = muestrasActuales
+        .filter((m) => m.tempCloacal != null)
+        .map((m, idx) => ({ n: idx + 1, tempCloacal: m.tempCloacal }));
+      const cargaPlanta = {
+        tempAmbienteUnidad: parseFloat(document.getElementById("input-temp-ambiente").value) || null,
+        muestras,
+        horaRegistro: document.getElementById("input-hora-carga").value,
+      };
+      return Store.updateViaje(v.id, { cargaPlanta });
+    }
+
+    document.getElementById("btn-guardar-planta").addEventListener("click", () => {
+      const r = guardar();
+      if (r) document.getElementById("msg-guardado").textContent = "✓ Registro de carga guardado — " + new Date().toLocaleTimeString("es-PE");
+    });
+
+    document.getElementById("btn-marcar-salida").addEventListener("click", () => {
+      const v = guardar();
+      if (!v) return;
+      const hora = new Date().toTimeString().slice(0, 5);
+      Store.updateViaje(v.id, {
+        estado: "En Tránsito",
+        horaSalidaReal: hora,
+        geocercas: [
+          { nombre: "Planta - Salida", hora, estado: "Cruzada" },
+          ...v.geocercas.slice(1).map((g) => ({ ...g })),
+        ],
+      });
+      document.getElementById("msg-guardado").textContent = "✓ Salida marcada a las " + hora + ". Unidad ahora en tránsito.";
+      window.location.href = "transito.html?id=" + v.id;
+    });
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

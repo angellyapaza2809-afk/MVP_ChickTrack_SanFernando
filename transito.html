@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tránsito · GPS · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "transito";
+  window.PAGE_TITLE = "② Tránsito — GPS y geocercas";
+  window.PAGE_SUBTITLE = "Monitoreo de temperatura ambiental de la unidad y cumplimiento de horarios contra geocercas";
+</script>
+
+<template id="tpl-content">
+  <div class="field" style="max-width:520px;">
+    <label>Unidad en ruta</label>
+    <select id="select-viaje"></select>
+  </div>
+
+  <div id="contenido"></div>
+</template>
+
+<template id="tpl-vacio">
+  <div class="empty-state">Selecciona una unidad en tránsito (o programada) para ver su seguimiento GPS.</div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  let chartRef = null;
+
+  function pintar(id) {
+    const cont = document.getElementById("contenido");
+    const v = Store.getViaje(id);
+    if (!v) {
+      cont.innerHTML = "";
+      cont.appendChild(document.getElementById("tpl-vacio").content.cloneNode(true));
+      return;
+    }
+
+    const salidaDeltaMin = Util.minutosEntre(v.horaSalidaPlan, v.horaSalidaReal);
+    const llegadaDeltaMin = v.horaLlegadaReal ? Util.minutosEntre(v.horaCargaFinPlan, v.horaLlegadaReal) : null;
+
+    cont.innerHTML = `
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head">
+            <h3>${v.dtSap} · ${v.placa} · ${v.destino1}</h3>
+            ${Util.badgeEstado(v.estado)}
+          </div>
+          <div class="geo-steps" id="geo-steps"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Cumplimiento horario (prog. vs. GPS)</h3></div>
+          <div class="grid grid-2" style="gap:10px;">
+            <div class="kpi-card">
+              <div class="kpi-label">Salida planta</div>
+              <div class="kpi-value ${salidaDeltaMin == null ? "" : salidaDeltaMin > 10 ? "heat" : "cool"}" style="font-size:19px;">
+                ${v.horaSalidaReal || "—"} <span class="faint" style="font-size:12px;">/ prog. ${v.horaSalidaPlan}</span>
+              </div>
+              <div class="kpi-delta">${salidaDeltaMin == null ? "Aún no registrado" : (salidaDeltaMin > 0 ? "+" : "") + salidaDeltaMin + " min vs. programado"}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Llegada a destino</div>
+              <div class="kpi-value ${llegadaDeltaMin == null ? "" : llegadaDeltaMin > 15 ? "heat" : "cool"}" style="font-size:19px;">
+                ${v.horaLlegadaReal || "En ruta"} <span class="faint" style="font-size:12px;">/ máx. espera ${v.esperaMaxMin || "—"} min</span>
+              </div>
+              <div class="kpi-delta">${llegadaDeltaMin == null ? "Estimado por geocerca próxima" : (llegadaDeltaMin > 0 ? "+" : "") + llegadaDeltaMin + " min vs. fin de carga prog."}</div>
+            </div>
+          </div>
+          <hr class="divider" />
+          <button class="btn btn-primary" id="btn-llegada" ${v.estado !== "En Tránsito" ? "disabled" : ""}>
+            Registrar llegada a destino (geocerca)
+          </button>
+          <p class="faint" style="font-size:12px; margin-top:8px;">
+            ${v.estado === "En Tránsito" ? "Se detecta cruce de geocerca de llegada para registrar el arribo." : "Disponible cuando la unidad esté en tránsito."}
+          </p>
+        </div>
+      </div>
+
+      <div class="section-title"><span class="eyebrow">SENSOR</span> Temperatura ambiente de la unidad (temperada)</div>
+      <div class="card">
+        ${v.transito.serie.length
+          ? `<canvas id="chart-temp" height="80"></canvas>`
+          : `<div class="empty-state">Aún no hay lecturas de sensores para esta unidad.</div>`}
+      </div>
+    `;
+
+    // Geocercas
+    const geoCont = document.getElementById("geo-steps");
+    geoCont.innerHTML = v.geocercas
+      .map((g, i) => {
+        const cruzada = g.estado === "Cruzada";
+        return `
+        <div class="geo-step ${cruzada ? "cruzada" : "pendiente"}">
+          <div class="rail">
+            <div class="node"></div>
+            ${i < v.geocercas.length - 1 ? '<div class="line"></div>' : ""}
+          </div>
+          <div class="content">
+            <div class="name">${g.nombre}</div>
+            <div class="time">${cruzada ? "Cruzada · " + g.hora : "Pendiente"}</div>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    // Chart temp ambiente
+    if (v.transito.serie.length) {
+      const ctx = document.getElementById("chart-temp");
+      if (chartRef) chartRef.destroy();
+      chartRef = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: v.transito.serie.map((s) => `min ${s.min}`),
+          datasets: [
+            {
+              label: "Temp. ambiente unidad (°C)",
+              data: v.transito.serie.map((s) => s.temp),
+              borderColor: "#2f93c4",
+              backgroundColor: "#2f93c422",
+              tension: 0.35,
+              fill: true,
+              pointRadius: 3,
+              pointBackgroundColor: "#2f93c4",
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: "#5c7396", font: { family: "Nunito Sans" } } } },
+          scales: {
+            x: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" } },
+            y: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" }, suggestedMin: 27, suggestedMax: 34 },
+          },
+        },
+      });
+    }
+
+    document.getElementById("btn-llegada")?.addEventListener("click", () => {
+      const hora = new Date().toTimeString().slice(0, 5);
+      const nuevasGeo = v.geocercas.map((g, i) => (i === v.geocercas.length - 1 ? { ...g, hora, estado: "Cruzada" } : g));
+      Store.updateViaje(v.id, { estado: "En Granja", horaLlegadaReal: hora, geocercas: nuevasGeo });
+      window.location.href = "granja.html?id=" + v.id;
+    });
+  }
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+    const select = document.getElementById("select-viaje");
+    Util.fillSelectViajes(select, Store.getViajes(), { placeholder: "Selecciona una unidad…" });
+
+    const preId = Util.qs("id");
+    const inicial = preId || (Store.getViajes().find((v) => v.estado === "En Tránsito") || {}).id || "";
+    select.value = inicial;
+    pintar(inicial);
+
+    select.addEventListener("change", () => pintar(select.value));
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

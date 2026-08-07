@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard BI · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "bi";
+  window.PAGE_TITLE = "Dashboard BI";
+  window.PAGE_SUBTITLE = "Analítica del ciclo térmico: temperatura, cumplimiento de horarios (GPS/geocercas), mortalidad y uniformidad";
+</script>
+
+<template id="tpl-content">
+  <div class="grid grid-3" id="kpis"></div>
+
+  <div class="section-title"><span class="eyebrow">01</span> Temperatura cloacal: salida vs. llegada por viaje</div>
+  <div class="card"><canvas id="chart-temp-comp" height="90"></canvas></div>
+
+  <div class="two-col" style="margin-top:16px;">
+    <div>
+      <div class="section-title"><span class="eyebrow">02</span> Cumplimiento de horario (GPS vs. programado)</div>
+      <div class="card"><canvas id="chart-horario" height="140"></canvas></div>
+    </div>
+    <div>
+      <div class="section-title"><span class="eyebrow">03</span> Mortalidad vs. desviación térmica</div>
+      <div class="card"><canvas id="chart-mortalidad" height="140"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="eyebrow">04</span> Uniformidad de peso por viaje</div>
+  <div class="card"><canvas id="chart-uniformidad" height="90"></canvas></div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  const chartDefaults = {
+    plugins: { legend: { labels: { color: "#5c7396", font: { family: "Nunito Sans" } } } },
+    scales: {
+      x: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" } },
+      y: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" } },
+    },
+  };
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const viajes = Store.getViajes();
+    const conDatos = viajes.filter((v) => v.cargaPlanta.muestras.length);
+    const conGranja = viajes.filter((v) => v.granja && v.granja.muestrasLlegada?.length);
+
+    // KPIs
+    const promSalida = Store.promedio(conDatos.flatMap((v) => v.cargaPlanta.muestras.map((m) => m.tempCloacal)));
+    const promLlegada = Store.promedio(conGranja.flatMap((v) => v.granja.muestrasLlegada.map((m) => m.tempCloacal)));
+    const cumplimiento = conDatos.filter((v) => {
+      const d = Util.minutosEntre(v.horaSalidaPlan, v.horaSalidaReal);
+      return d != null && d <= 10;
+    }).length;
+    const pctCumplimiento = conDatos.filter(v=>v.horaSalidaReal).length
+      ? ((cumplimiento / conDatos.filter(v=>v.horaSalidaReal).length) * 100).toFixed(0)
+      : "—";
+    const uniProm = Store.promedio(conGranja.map((v) => v.granja.uniformidadPct));
+
+    document.getElementById("kpis").innerHTML = `
+      <div class="card kpi-card">
+        <div class="kpi-label">Δ Temp. cloacal promedio (llegada − salida)</div>
+        <div class="kpi-value ${promSalida!=null && promLlegada!=null && Math.abs(promLlegada-promSalida)>0.6 ? "heat":"cool"}">
+          ${promSalida!=null && promLlegada!=null ? (promLlegada-promSalida>0?"+":"")+(promLlegada-promSalida).toFixed(2)+"°C" : "—"}
+        </div>
+        <div class="kpi-delta">Salida ${promSalida?.toFixed(1) ?? "—"}°C → Llegada ${promLlegada?.toFixed(1) ?? "—"}°C</div>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">Cumplimiento de salida (±10 min vs. prog.)</div>
+        <div class="kpi-value ${pctCumplimiento!=="—" && pctCumplimiento<80 ? "warn":"cool"}">${pctCumplimiento}${pctCumplimiento!=="—"?"%":""}</div>
+        <div class="kpi-delta">Contraste hora prevista vs. GPS / geocercas</div>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">Uniformidad promedio de peso</div>
+        <div class="kpi-value ${uniProm!=null && uniProm<85 ? "warn":"cool"}">${uniProm!=null?uniProm.toFixed(1)+"%":"—"}</div>
+        <div class="kpi-delta">% de aves dentro de ±10% del peso promedio del lote</div>
+      </div>
+    `;
+
+    // Chart 1 — temp comparativa
+    new Chart(document.getElementById("chart-temp-comp"), {
+      type: "bar",
+      data: {
+        labels: conDatos.map((v) => v.dtSap.slice(-4)),
+        datasets: [
+          { label: "Salida planta", data: conDatos.map((v) => +Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal)).toFixed(1)), backgroundColor: "#2f93c4", borderRadius: 4 },
+          { label: "Llegada granja", data: conDatos.map((v) => v.granja ? +Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)).toFixed(1) : null), backgroundColor: "#e2231a", borderRadius: 4 },
+        ],
+      },
+      options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 37, suggestedMax: 42 } } },
+    });
+
+    // Chart 2 — cumplimiento horario (delta minutos)
+    const conSalida = conDatos.filter((v) => v.horaSalidaReal);
+    new Chart(document.getElementById("chart-horario"), {
+      type: "bar",
+      data: {
+        labels: conSalida.map((v) => v.dtSap.slice(-4)),
+        datasets: [
+          {
+            label: "Δ minutos vs. hora programada",
+            data: conSalida.map((v) => Util.minutosEntre(v.horaSalidaPlan, v.horaSalidaReal)),
+            backgroundColor: conSalida.map((v) => (Util.minutosEntre(v.horaSalidaPlan, v.horaSalidaReal) > 10 ? "#e8a23d" : "#2f93c4")),
+            borderRadius: 4,
+          },
+        ],
+      },
+      options: chartDefaults,
+    });
+
+    // Chart 3 — mortalidad vs desviación térmica (scatter)
+    const puntos = conGranja.map((v) => {
+      const promC = Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+      const promL = Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal));
+      return { x: +(promL - promC).toFixed(2), y: v.granja.mortalidad, label: v.dtSap };
+    });
+    new Chart(document.getElementById("chart-mortalidad"), {
+      type: "scatter",
+      data: { datasets: [{ label: "Viajes", data: puntos, backgroundColor: "#e2231a" }] },
+      options: {
+        ...chartDefaults,
+        plugins: {
+          ...chartDefaults.plugins,
+          tooltip: { callbacks: { label: (c) => `${c.raw.label}: Δ${c.raw.x}°C · mortalidad ${c.raw.y}%` } },
+        },
+        scales: {
+          x: { ...chartDefaults.scales.x, title: { display: true, text: "Δ Temp. cloacal (°C)", color: "#5c7396" } },
+          y: { ...chartDefaults.scales.y, title: { display: true, text: "Mortalidad (%)", color: "#5c7396" } },
+        },
+      },
+    });
+
+    // Chart 4 — uniformidad
+    new Chart(document.getElementById("chart-uniformidad"), {
+      type: "line",
+      data: {
+        labels: conGranja.map((v) => v.dtSap.slice(-4)),
+        datasets: [
+          {
+            label: "Uniformidad de peso (%)",
+            data: conGranja.map((v) => v.granja.uniformidadPct),
+            borderColor: "#6a5fc4",
+            backgroundColor: "#6a5fc422",
+            fill: true,
+            tension: 0.3,
+            pointBackgroundColor: "#6a5fc4",
+          },
+        ],
+      },
+      options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 70, suggestedMax: 100 } } },
+    });
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>
