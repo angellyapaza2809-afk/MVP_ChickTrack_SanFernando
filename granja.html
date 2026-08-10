@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Recepción en granja · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "granja";
+  window.PAGE_TITLE = "③ Recepción en granja";
+  window.PAGE_SUBTITLE = "Condiciones del galpón y control de llegada: mortalidad, temperatura cloacal, peso y uniformidad";
+</script>
+
+<template id="tpl-content">
+  <div class="field" style="max-width:520px;">
+    <label>Unidad a recepcionar</label>
+    <select id="select-viaje"></select>
+  </div>
+  <div id="viaje-detalle" class="faint" style="font-size:12.5px; margin:6px 0 20px;"></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head"><h3>Condiciones del galpón</h3></div>
+      <div class="grid grid-2">
+        <div class="field"><label>Galpón</label><input class="mono" id="g-galpon" placeholder="G-08" /></div>
+        <div class="field"><label>Temperatura del galpón (°C)</label><input class="mono" type="number" step="0.1" id="g-temp" placeholder="32.0" /></div>
+        <div class="field"><label>Humedad relativa (%)</label><input class="mono" type="number" step="1" id="g-hum" placeholder="60" /></div>
+        <div class="field"><label>Niveles de amoníaco NH₃ (ppm)</label><input class="mono" type="number" step="0.1" id="g-nh3" placeholder="10" /></div>
+        <div class="field"><label>Ventilación / flujo de aire (m/s)</label><input class="mono" type="number" step="0.01" id="g-vent" placeholder="0.5" /></div>
+        <div class="field"><label>Concentración de CO₂ (ppm)</label><input class="mono" type="number" step="10" id="g-co2" placeholder="1100" /></div>
+        <div class="field"><label>Iluminación (lux)</label><input class="mono" type="number" step="1" id="g-lux" placeholder="25" /></div>
+      </div>
+      <button class="btn" id="btn-guardar-galpon" type="button">Guardar condiciones del galpón</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>Control de llegada</h3></div>
+
+      <div class="grid grid-2">
+        <div class="field"><label>Plantel (Granja)</label><input class="mono" id="g-plantel" placeholder="Granja Chincha Norte" /></div>
+        <div class="field"><label>Galpón</label><input class="mono" id="g-lote-galpon" placeholder="G-08" /></div>
+        <div class="field"><label>Campaña</label><input class="mono" id="g-campana" placeholder="Lote 231-A" /></div>
+      </div>
+
+      <h3 style="font-size:13px; margin:14px 0 8px;">Sexo del lote</h3>
+      <div class="grid grid-2">
+        <div class="field"><label>Cantidad F (hembras)</label><input class="mono" type="number" step="1" min="0" id="g-sexo-f" placeholder="5000" /></div>
+        <div class="field"><label>Cantidad M (machos)</label><input class="mono" type="number" step="1" min="0" id="g-sexo-m" placeholder="5000" /></div>
+        <div class="field"><label>Total del lote</label><input class="mono" id="g-sexo-total" readonly /></div>
+      </div>
+
+      <h3 style="font-size:13px; margin:14px 0 8px;">Mortalidad durante el transporte</h3>
+      <div class="grid grid-2">
+        <div class="field"><label>Cantidad despachada</label><input class="mono" type="number" step="1" min="0" id="g-despachada" placeholder="10000" /></div>
+        <div class="field"><label>Muertos durante el trayecto</label><input class="mono" type="number" step="1" min="0" id="g-muertos" placeholder="25" /></div>
+        <div class="field"><label>Mortalidad (%) — calculada</label><input class="mono" id="g-mortalidad" readonly /></div>
+        <div class="field"><label>Uniformidad calculada (%)</label><input class="mono" id="g-uniformidad" readonly /></div>
+      </div>
+      <p class="faint" id="msg-validacion" style="margin:6px 0 0; font-size:12px; color:#c0392b;"></p>
+
+      <div class="flex-between" style="margin:16px 0 10px;">
+        <h3 style="font-size:13px;">Muestras (sexo + temp. cloacal + peso)</h3>
+        <button class="btn btn-sm" id="btn-add-muestra" type="button">+ Agregar muestra</button>
+      </div>
+      <div id="muestras-rows"></div>
+
+      <button class="btn btn-primary" style="margin-top:12px;" id="btn-guardar-llegada" type="button">Guardar control de llegada</button>
+      <button class="btn" id="btn-finalizar" type="button">Finalizar ciclo del viaje ✓</button>
+      <p class="faint" id="msg" style="margin-top:10px; font-size:12px;"></p>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="eyebrow">CICLO</span> Cinta térmica completa (planta → tránsito → granja)</div>
+  <div class="card" id="ribbon-cont"></div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script src="js/thermal-ribbon.js"></script>
+<script>
+  let muestraSeq = 1;
+  let muestras = [];
+
+  function pesoUniformidad(pesos) {
+    // Uniformidad = % de aves dentro de ±10% del peso promedio del lote
+    const prom = Store.promedio(pesos);
+    if (prom == null) return null;
+    const dentro = pesos.filter((p) => Math.abs(p - prom) <= prom * 0.1).length;
+    return (dentro / pesos.length) * 100;
+  }
+
+  function pintarMuestras() {
+    document.getElementById("muestras-rows").innerHTML = muestras
+      .map(
+        (m, idx) => `
+      <div class="flex gap-8" style="margin-bottom:8px;" data-row="${m._id}">
+        <input class="mono" style="width:64px;" value="M${idx + 1}" disabled />
+        <select class="mono s-input" style="width:70px;">
+          <option value="" ${!m.sexo ? "selected" : ""}>Sexo</option>
+          <option value="F" ${m.sexo === "F" ? "selected" : ""}>F</option>
+          <option value="M" ${m.sexo === "M" ? "selected" : ""}>M</option>
+        </select>
+        <input class="mono t-input" type="number" step="0.1" placeholder="Temp °C" value="${m.tempCloacal ?? ""}" style="width:100px;" />
+        <input class="mono p-input" type="number" step="0.5" placeholder="Peso g" value="${m.pesoG ?? ""}" style="width:100px;" />
+        <button class="btn btn-sm btn-ghost" type="button" data-remove="${m._id}">✕</button>
+      </div>`
+      )
+      .join("");
+
+    document.querySelectorAll(".s-input").forEach((sel, idx) => {
+      sel.addEventListener("change", () => { muestras[idx].sexo = sel.value || null; });
+    });
+    document.querySelectorAll(".t-input").forEach((inp, idx) => {
+      inp.addEventListener("input", () => { muestras[idx].tempCloacal = inp.value ? parseFloat(inp.value) : null; recalc(); });
+    });
+    document.querySelectorAll(".p-input").forEach((inp, idx) => {
+      inp.addEventListener("input", () => { muestras[idx].pesoG = inp.value ? parseFloat(inp.value) : null; recalc(); });
+    });
+    document.querySelectorAll("[data-remove]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        muestras = muestras.filter((m) => m._id !== btn.getAttribute("data-remove"));
+        pintarMuestras(); recalc();
+      });
+    });
+  }
+
+  function recalc() {
+    const pesos = muestras.map((m) => m.pesoG).filter((p) => p != null);
+    const uni = pesoUniformidad(pesos);
+    document.getElementById("g-uniformidad").value = uni != null ? uni.toFixed(1) + "%" : "";
+  }
+
+  // --- Sexo del lote: total siempre calculado, nunca editable ---
+  function recalcSexoLote() {
+    const f = parseInt(document.getElementById("g-sexo-f").value, 10);
+    const m = parseInt(document.getElementById("g-sexo-m").value, 10);
+    const total = (!isNaN(f) ? f : 0) + (!isNaN(m) ? m : 0);
+    document.getElementById("g-sexo-total").value = (!isNaN(f) || !isNaN(m)) ? total : "";
+  }
+
+  // --- Mortalidad: el usuario solo ingresa "muertos"; el % siempre se calcula ---
+  function recalcMortalidad() {
+    const despachada = parseFloat(document.getElementById("g-despachada").value);
+    const muertos = parseFloat(document.getElementById("g-muertos").value);
+    const pct = Store.calcularMortalidad(muertos, despachada);
+    document.getElementById("g-mortalidad").value = pct != null ? pct.toFixed(2) + "%" : "";
+  }
+
+  function leerControlLlegadaForm() {
+    const fRaw = document.getElementById("g-sexo-f").value;
+    const mRaw = document.getElementById("g-sexo-m").value;
+    return {
+      f: fRaw !== "" ? parseInt(fRaw, 10) : null,
+      m: mRaw !== "" ? parseInt(mRaw, 10) : null,
+      total: (fRaw !== "" || mRaw !== "") ? (parseInt(fRaw, 10) || 0) + (parseInt(mRaw, 10) || 0) : null,
+      cantidadDespachada: document.getElementById("g-despachada").value !== "" ? parseFloat(document.getElementById("g-despachada").value) : null,
+      muertosTraslado: document.getElementById("g-muertos").value !== "" ? parseFloat(document.getElementById("g-muertos").value) : null,
+    };
+  }
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const select = document.getElementById("select-viaje");
+    Util.fillSelectViajes(select, Store.getViajes(), { placeholder: "Selecciona una unidad…" });
+    const preId = Util.qs("id");
+    const inicial = preId || (Store.getViajes().find((v) => v.estado === "En Granja") || {}).id || "";
+    select.value = inicial;
+
+    function cargar() {
+      const v = Store.getViaje(select.value);
+      const det = document.getElementById("viaje-detalle");
+      if (!v) { det.textContent = ""; muestras = []; pintarMuestras(); recalc(); dibujarRibbon(null); return; }
+
+      det.innerHTML = `${v.dtSap} · ${v.destino1} · Lote ${v.edadLotes} · Unidad ${v.unidad} · ${Util.badgeEstado(v.estado)}`;
+
+      const g = v.granja;
+      const galpon = g?.galpones?.[0];
+      document.getElementById("g-galpon").value = galpon?.galpon || v.galpon || "";
+      document.getElementById("g-temp").value = galpon?.temp ?? "";
+      document.getElementById("g-hum").value = galpon?.humedad ?? "";
+      document.getElementById("g-nh3").value = galpon?.nh3 ?? "";
+      document.getElementById("g-vent").value = galpon?.ventilacion ?? "";
+      document.getElementById("g-co2").value = galpon?.co2 ?? "";
+      document.getElementById("g-lux").value = galpon?.iluminacion ?? "";
+
+      const lote = g?.loteRecepcion;
+      document.getElementById("g-plantel").value = lote?.plantel ?? v.destino1 ?? "";
+      document.getElementById("g-lote-galpon").value = lote?.galpon ?? v.galpon ?? "";
+      document.getElementById("g-campana").value = lote?.campana ?? v.edadLotes ?? "";
+      document.getElementById("g-sexo-f").value = lote?.sexo?.F ?? "";
+      document.getElementById("g-sexo-m").value = lote?.sexo?.M ?? "";
+      document.getElementById("g-despachada").value = lote?.transporte?.cantidadDespachada ?? v.cantidad ?? "";
+      document.getElementById("g-muertos").value = lote?.transporte?.muertosTraslado ?? "";
+      recalcSexoLote();
+      recalcMortalidad();
+      document.getElementById("msg-validacion").textContent = "";
+
+      muestras = (g?.muestrasLlegada || []).map((m) => ({ _id: "m" + muestraSeq++, tempCloacal: m.tempCloacal, pesoG: m.pesoG, sexo: m.sexo || null }));
+      if (!muestras.length) muestras = [1, 2, 3].map(() => ({ _id: "m" + muestraSeq++, tempCloacal: null, pesoG: null, sexo: null }));
+      pintarMuestras();
+      recalc();
+      dibujarRibbon(v);
+    }
+
+    function dibujarRibbon(v) {
+      const cont = document.getElementById("ribbon-cont");
+      if (!v) { cont.innerHTML = `<div class="empty-state">Selecciona una unidad.</div>`; return; }
+      const promC = Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+      const promAmb = Store.promedio(v.transito.serie.map((s) => s.temp));
+      const promL = Store.promedio(muestras.map((m) => m.tempCloacal).filter((t) => t != null));
+      cont.innerHTML = "";
+      renderThermalRibbon(cont, [
+        { label: "Salida planta", sub: v.horaSalidaReal || v.horaSalidaPlan, temp: promC },
+        { label: "Tránsito (amb.)", sub: "unidad temperada", temp: promAmb },
+        { label: "Llegada granja", sub: v.horaLlegadaReal, temp: promL },
+      ]);
+    }
+
+    select.addEventListener("change", cargar);
+    cargar();
+
+    document.getElementById("g-sexo-f").addEventListener("input", recalcSexoLote);
+    document.getElementById("g-sexo-m").addEventListener("input", recalcSexoLote);
+    document.getElementById("g-despachada").addEventListener("input", recalcMortalidad);
+    document.getElementById("g-muertos").addEventListener("input", recalcMortalidad);
+
+    document.getElementById("btn-add-muestra").addEventListener("click", () => {
+      muestras.push({ _id: "m" + muestraSeq++, tempCloacal: null, pesoG: null, sexo: null });
+      pintarMuestras();
+    });
+
+    function guardarGalpon() {
+      const v = Store.getViaje(select.value);
+      if (!v) { alert("Selecciona una unidad."); return null; }
+      const galponData = {
+        galpon: document.getElementById("g-galpon").value,
+        temp: parseFloat(document.getElementById("g-temp").value) || null,
+        humedad: parseFloat(document.getElementById("g-hum").value) || null,
+        nh3: parseFloat(document.getElementById("g-nh3").value) || null,
+        ventilacion: parseFloat(document.getElementById("g-vent").value) || null,
+        co2: parseFloat(document.getElementById("g-co2").value) || null,
+        iluminacion: parseFloat(document.getElementById("g-lux").value) || null,
+      };
+      const granja = v.granja || {};
+      granja.galpones = [galponData];
+      return Store.updateViaje(v.id, { granja });
+    }
+
+    function guardarLlegada() {
+      const v = Store.getViaje(select.value);
+      if (!v) { alert("Selecciona una unidad."); return null; }
+
+      const form = leerControlLlegadaForm();
+      const { ok, errores } = Store.validarControlLlegada(form);
+      const msgVal = document.getElementById("msg-validacion");
+      if (!ok) {
+        msgVal.textContent = "⚠ " + errores.join(" · ");
+        return null;
+      }
+      msgVal.textContent = "";
+
+      const mortalidadPct = Store.calcularMortalidad(form.muertosTraslado, form.cantidadDespachada);
+
+      const muestrasLlegada = muestras
+        .filter((m) => m.tempCloacal != null)
+        .map((m, idx) => ({ n: idx + 1, tempCloacal: m.tempCloacal, pesoG: m.pesoG, sexo: m.sexo || null }));
+      const pesos = muestrasLlegada.map((m) => m.pesoG).filter((p) => p != null);
+
+      const granja = v.granja || { galpones: [] };
+      granja.loteRecepcion = {
+        plantel: document.getElementById("g-plantel").value,
+        galpon: document.getElementById("g-lote-galpon").value,
+        campana: document.getElementById("g-campana").value,
+        sexo: { F: form.f, M: form.m, total: form.total },
+        transporte: {
+          cantidadDespachada: form.cantidadDespachada,
+          muertosTraslado: form.muertosTraslado,
+          mortalidadPct,
+        },
+      };
+      // Se mantiene sincronizado: index.html / bi.html / viaje.html leen granja.mortalidad directo.
+      granja.mortalidad = mortalidadPct ?? 0;
+      granja.muestrasLlegada = muestrasLlegada;
+      granja.pesoPromedioG = pesos.length ? +Store.promedio(pesos).toFixed(1) : null;
+      granja.uniformidadPct = pesos.length ? +pesoUniformidad(pesos).toFixed(1) : null;
+      return Store.updateViaje(v.id, { granja });
+    }
+
+    document.getElementById("btn-guardar-galpon").addEventListener("click", () => {
+      guardarGalpon();
+      document.getElementById("msg").textContent = "✓ Condiciones del galpón guardadas.";
+    });
+
+    document.getElementById("btn-guardar-llegada").addEventListener("click", () => {
+      const v = guardarLlegada();
+      if (v) { document.getElementById("msg").textContent = "✓ Control de llegada guardado."; dibujarRibbon(Store.getViaje(v.id)); }
+    });
+
+    document.getElementById("btn-finalizar").addEventListener("click", () => {
+      guardarGalpon();
+      const v = guardarLlegada();
+      if (!v) return;
+      Store.updateViaje(v.id, { estado: "Finalizado" });
+      document.getElementById("msg").textContent = "✓ Ciclo finalizado. Datos enviados al dashboard BI.";
+      select.dispatchEvent(new Event("change"));
+    });
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>
