@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { group: "Registro por etapa" },
   { id: "planta", href: "planta.html", label: "Carga en planta", icon: "①" },
   { id: "transito", href: "transito.html", label: "Tránsito · GPS", icon: "②" },
+  { id: "checklist", href: "checklist.html", label: "Checklist galpón", icon: "☑" },
   { id: "granja", href: "granja.html", label: "Recepción en granja", icon: "③" },
   { group: "Analítica" },
   { id: "bi", href: "bi.html", label: "Dashboard BI", icon: "▦" },

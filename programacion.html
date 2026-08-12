@@ -43,6 +43,7 @@
           <div class="field"><label>Hora retorno planta (prog.)</label><input class="mono" type="time" name="horaRetornoPlan" /></div>
           <div class="field"><label>Planta de retorno</label><input name="plantaRetorno" placeholder="Planta Incubación Lurín" /></div>
         </div>
+        <div id="ck-live-status" class="faint" style="font-size:12.5px; margin:-6px 0 14px; padding:10px 12px; border:1px dashed var(--border); border-radius:var(--radius-sm);"></div>
         <button class="btn btn-primary" type="submit">Cargar programación</button>
       </form>
     </div>
@@ -68,7 +69,8 @@
       <thead>
         <tr>
           <th>D.T.</th><th>Fecha</th><th>Ruta</th><th>Origen</th><th>Destino</th>
-          <th>Unidad</th><th>Placa</th><th>Conductor</th><th>Salida prog.</th><th>Estado</th><th></th>
+          <th>Unidad</th><th>Placa</th><th>Conductor</th><th>Salida prog.</th><th>Estado</th>
+          <th>Checklist galpón</th><th></th>
         </tr>
       </thead>
       <tbody id="body-viajes"></tbody>
@@ -79,6 +81,15 @@
 <script src="js/store.js"></script>
 <script src="js/util.js"></script>
 <script>
+  function checklistBadgeHtml(plantel, galpon) {
+    const cl = Store.getChecklist(plantel, galpon);
+    const estado = Store.clasificarChecklist(cl);
+    const label = Store.CHECKLIST_ESTADO_LABEL[estado];
+    const cls = Store.CHECKLIST_ESTADO_BADGE[estado];
+    const href = `checklist.html?plantel=${encodeURIComponent(plantel || "")}&galpon=${encodeURIComponent(galpon || "")}`;
+    return `<a href="${href}" class="badge ${cls}" style="text-decoration:none;">${label}</a>`;
+  }
+
   window.initPage = function () {
     document.getElementById("page-content").appendChild(
       document.getElementById("tpl-content").content.cloneNode(true)
@@ -86,6 +97,20 @@
 
     const today = new Date().toISOString().slice(0, 10);
     document.querySelector('input[name="fecha"]').value = today;
+
+    function actualizarChecklistEnVivo() {
+      const plantel = document.querySelector('input[name="destino1"]').value.trim();
+      const galpon = document.querySelector('input[name="galpon"]').value.trim();
+      const cont = document.getElementById("ck-live-status");
+      if (!plantel || !galpon) {
+        cont.innerHTML = "Escribe Destino 1 y Galpón para ver el estado del checklist de preparación de ese galpón.";
+        return;
+      }
+      cont.innerHTML = `Checklist de <strong>${plantel} · ${galpon}</strong>: ${checklistBadgeHtml(plantel, galpon)}`;
+    }
+    document.querySelector('input[name="destino1"]').addEventListener("input", actualizarChecklistEnVivo);
+    document.querySelector('input[name="galpon"]').addEventListener("input", actualizarChecklistEnVivo);
+    actualizarChecklistEnVivo();
 
     function draw() {
       const viajes = Store.getViajes();
@@ -113,6 +138,7 @@
           <td>${v.conductor}</td>
           <td class="mono">${Util.fmtHora(v.horaSalidaPlan)}</td>
           <td>${Util.badgeEstado(v.estado)}</td>
+          <td>${checklistBadgeHtml(v.destino1, v.galpon)}</td>
           <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver →</a></td>
         </tr>`
         )
@@ -130,6 +156,7 @@
       Store.addViaje(viaje);
       e.target.reset();
       document.querySelector('input[name="fecha"]').value = today;
+      actualizarChecklistEnVivo();
       draw();
     });
 
