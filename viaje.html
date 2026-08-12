@@ -35,7 +35,6 @@
     const promC = Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal));
     const promAmb = Store.promedio(v.transito.serie.map((s) => s.temp));
     const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
-    const g = v.granja?.galpones?.[0];
     const contraste = Store.contrastarDatalogger(v.transito.serie, v.transito.datalogger?.serie || []);
     const checklistsViaje = Store.destinosGalpones(v).map((p) => ({
       ...p,
@@ -98,28 +97,15 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h3>Condiciones del galpón de destino</h3></div>
-          <div class="flex gap-8 wrap" style="margin:-4px 0 12px;">
+          <div class="card-head"><h3>Checklist de preparación de galpón</h3><span class="hint">FICYB004 v2</span></div>
+          <div class="flex gap-8 wrap" style="margin-bottom:4px;">
             ${checklistsViaje
               .map(
                 (c) =>
                   `<a href="${c.href}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[c.estado]}" style="text-decoration:none;">${c.destino} · ${c.galpon || "—"}: ${Store.CHECKLIST_ESTADO_LABEL[c.estado]}</a>`
               )
-              .join("")}
+              .join("") || `<div class="empty-state">Sin galpón de destino registrado.</div>`}
           </div>
-          ${
-            g
-              ? `<div class="grid grid-2" style="font-size:12.5px; gap:10px;">
-              <div><span class="faint">Galpón:</span> ${g.galpon}</div>
-              <div><span class="faint">Temp:</span> ${g.temp ?? "—"}°C</div>
-              <div><span class="faint">Humedad:</span> ${g.humedad ?? "—"}%</div>
-              <div><span class="faint">NH₃:</span> ${g.nh3 ?? "—"} ppm</div>
-              <div><span class="faint">Ventilación:</span> ${g.ventilacion ?? "—"} m/s</div>
-              <div><span class="faint">CO₂:</span> ${g.co2 ?? "—"} ppm</div>
-              <div><span class="faint">Iluminación:</span> ${g.iluminacion ?? "—"} lux</div>
-            </div>`
-              : `<div class="empty-state">Sin datos aún.</div>`
-          }
           <hr class="divider" />
           <div class="grid grid-2" style="font-size:12.5px; gap:10px;">
             <div><span class="faint">Mortalidad:</span> ${v.granja?.mortalidad ?? "—"}%</div>

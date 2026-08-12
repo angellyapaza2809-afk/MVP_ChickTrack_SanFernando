@@ -10,7 +10,7 @@
 <script>
   window.PAGE = "granja";
   window.PAGE_TITLE = "③ Recepción en granja";
-  window.PAGE_SUBTITLE = "Condiciones del galpón y control de llegada: mortalidad, temperatura cloacal, peso y uniformidad";
+  window.PAGE_SUBTITLE = "Checklist de preparación de galpón y control de llegada: mortalidad, temperatura cloacal, peso y uniformidad";
 </script>
 
 <template id="tpl-content">
@@ -22,17 +22,8 @@
 
   <div class="two-col">
     <div class="card">
-      <div class="card-head"><h3>Condiciones del galpón</h3><span id="g-checklist-badge"></span></div>
-      <div class="grid grid-2">
-        <div class="field"><label>Galpón</label><input class="mono" id="g-galpon" placeholder="G-08" /></div>
-        <div class="field"><label>Temperatura del galpón (°C)</label><input class="mono" type="number" step="0.1" id="g-temp" placeholder="32.0" /></div>
-        <div class="field"><label>Humedad relativa (%)</label><input class="mono" type="number" step="1" id="g-hum" placeholder="60" /></div>
-        <div class="field"><label>Niveles de amoníaco NH₃ (ppm)</label><input class="mono" type="number" step="0.1" id="g-nh3" placeholder="10" /></div>
-        <div class="field"><label>Ventilación / flujo de aire (m/s)</label><input class="mono" type="number" step="0.01" id="g-vent" placeholder="0.5" /></div>
-        <div class="field"><label>Concentración de CO₂ (ppm)</label><input class="mono" type="number" step="10" id="g-co2" placeholder="1100" /></div>
-        <div class="field"><label>Iluminación (lux)</label><input class="mono" type="number" step="1" id="g-lux" placeholder="25" /></div>
-      </div>
-      <button class="btn" id="btn-guardar-galpon" type="button">Guardar condiciones del galpón</button>
+      <div class="card-head"><h3>Checklist de preparación de galpón</h3><span class="hint">FICYB004 v2</span></div>
+      <div id="g-checklist-lista"></div>
     </div>
 
     <div class="card">
@@ -196,28 +187,26 @@
     function cargar() {
       const v = Store.getViaje(select.value);
       const det = document.getElementById("viaje-detalle");
-      if (!v) { det.textContent = ""; document.getElementById("g-checklist-badge").innerHTML = ""; muestras = []; pintarMuestras(); recalc(); dibujarRibbon(null); return; }
+      if (!v) { det.textContent = ""; document.getElementById("g-checklist-lista").innerHTML = ""; muestras = []; pintarMuestras(); recalc(); dibujarRibbon(null); return; }
 
       det.innerHTML = `${v.dtSap} · ${v.destino1} · Lote ${v.edadLotes} · Unidad ${v.unidad} · ${Util.badgeEstado(v.estado)}`;
 
-      document.getElementById("g-checklist-badge").innerHTML = Store.destinosGalpones(v)
+      document.getElementById("g-checklist-lista").innerHTML = Store.destinosGalpones(v)
         .map((p) => {
           const estado = Store.clasificarChecklist(Store.getChecklist(p.destino, p.galpon));
           const href = `checklist.html?plantel=${encodeURIComponent(p.destino)}&galpon=${encodeURIComponent(p.galpon || "")}`;
-          return `<a href="${href}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[estado]}" style="text-decoration:none; margin-left:6px;">${p.galpon || "—"}: ${Store.CHECKLIST_ESTADO_LABEL[estado]}</a>`;
+          return `
+            <div class="flex-between" style="padding:10px 0; border-bottom:1px solid var(--border-soft);">
+              <div style="font-size:12.5px;"><strong>${p.destino}</strong> · Galpón ${p.galpon || "—"}</div>
+              <div class="flex gap-8" style="align-items:center;">
+                <span class="badge ${Store.CHECKLIST_ESTADO_BADGE[estado]}">${Store.CHECKLIST_ESTADO_LABEL[estado]}</span>
+                <a class="btn btn-sm btn-ghost" href="${href}">Ver checklist →</a>
+              </div>
+            </div>`;
         })
-        .join("");
+        .join("") || `<div class="empty-state">Este viaje no tiene galpón de destino registrado.</div>`;
 
       const g = v.granja;
-      const galpon = g?.galpones?.[0];
-      document.getElementById("g-galpon").value = galpon?.galpon || v.galpon || "";
-      document.getElementById("g-temp").value = galpon?.temp ?? "";
-      document.getElementById("g-hum").value = galpon?.humedad ?? "";
-      document.getElementById("g-nh3").value = galpon?.nh3 ?? "";
-      document.getElementById("g-vent").value = galpon?.ventilacion ?? "";
-      document.getElementById("g-co2").value = galpon?.co2 ?? "";
-      document.getElementById("g-lux").value = galpon?.iluminacion ?? "";
-
       const ubic = g?.ubicacionOrganizacional;
       document.getElementById("g-zona").value = ubic?.zona || "";
       document.getElementById("g-subzona").value = ubic?.subzona || "";
@@ -274,23 +263,6 @@
       pintarMuestras();
     });
 
-    function guardarGalpon() {
-      const v = Store.getViaje(select.value);
-      if (!v) { alert("Selecciona una unidad."); return null; }
-      const galponData = {
-        galpon: document.getElementById("g-galpon").value,
-        temp: parseFloat(document.getElementById("g-temp").value) || null,
-        humedad: parseFloat(document.getElementById("g-hum").value) || null,
-        nh3: parseFloat(document.getElementById("g-nh3").value) || null,
-        ventilacion: parseFloat(document.getElementById("g-vent").value) || null,
-        co2: parseFloat(document.getElementById("g-co2").value) || null,
-        iluminacion: parseFloat(document.getElementById("g-lux").value) || null,
-      };
-      const granja = v.granja || {};
-      granja.galpones = [galponData];
-      return Store.updateViaje(v.id, { granja });
-    }
-
     function guardarUbicacion() {
       const v = Store.getViaje(select.value);
       if (!v) { alert("Selecciona una unidad."); return null; }
@@ -327,7 +299,7 @@
         .map((m, idx) => ({ n: idx + 1, tempCloacal: m.tempCloacal, pesoG: m.pesoG, sexo: m.sexo || null }));
       const pesos = muestrasLlegada.map((m) => m.pesoG).filter((p) => p != null);
 
-      const granja = v.granja || { galpones: [] };
+      const granja = v.granja || {};
       granja.loteRecepcion = {
         plantel: document.getElementById("g-plantel").value,
         galpon: document.getElementById("g-lote-galpon").value,
@@ -347,11 +319,6 @@
       return Store.updateViaje(v.id, { granja });
     }
 
-    document.getElementById("btn-guardar-galpon").addEventListener("click", () => {
-      guardarGalpon();
-      document.getElementById("msg").textContent = "✓ Condiciones del galpón guardadas.";
-    });
-
     document.getElementById("btn-guardar-ubicacion").addEventListener("click", () => {
       guardarUbicacion();
       document.getElementById("msg").textContent = "✓ Dimensión geográfica y organizacional guardada.";
@@ -363,7 +330,6 @@
     });
 
     document.getElementById("btn-finalizar").addEventListener("click", () => {
-      guardarGalpon();
       guardarUbicacion();
       const v = guardarLlegada();
       if (!v) return;
