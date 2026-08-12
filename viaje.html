@@ -36,6 +36,7 @@
     const promAmb = Store.promedio(v.transito.serie.map((s) => s.temp));
     const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
     const g = v.granja?.galpones?.[0];
+    const contraste = Store.contrastarDatalogger(v.transito.serie, v.transito.datalogger?.serie || []);
 
     cont.innerHTML = `
       <div class="flex-between wrap" style="margin-bottom:16px;">
@@ -63,6 +64,7 @@
           <div class="kpi-label">② Temp. ambiente en tránsito</div>
           <div class="kpi-value">${promAmb != null ? promAmb.toFixed(1) + "°C" : "—"}</div>
           <div class="kpi-delta">${v.transito.serie.length} lecturas de sensor</div>
+          <div>${contraste ? `<span class="badge ${contraste.consistente ? "optimo" : "critico"}">${contraste.consistente ? "Datalogger OK" : "Discrepancia datalogger"}</span>` : `<span class="badge sin-dato">Sin datalogger</span>`}</div>
         </div>
         <div class="card kpi-card">
           <div class="kpi-label">③ Temp. cloacal — llegada granja</div>

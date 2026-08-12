@@ -29,6 +29,35 @@ function tasaCrecimientoPct(pesoPromedioG) {
   return +(((pesoPromedioG - PESO_REFERENCIA_G) / PESO_REFERENCIA_G) * 100).toFixed(2);
 }
 
+// ---------------------------------------------------------------
+// Contraste sensor del proveedor (unidad) vs. datalogger independiente
+// ---------------------------------------------------------------
+
+// Diferencia máxima admitida entre el promedio del sensor del proveedor
+// y el promedio del datalogger antes de marcar el viaje como "discrepancia".
+// Referencial — ajustar con el área técnica antes de producción.
+const TOLERANCIA_DATALOGGER_C = 0.5;
+
+/**
+ * Contrasta la serie de temperatura del sensor del proveedor (unidad)
+ * contra la serie de un datalogger independiente (tiempo real o
+ * descargado/registrado manualmente tras el viaje).
+ * Devuelve null si no hay datos de datalogger todavía.
+ */
+function contrastarDatalogger(serieSensor, serieDatalogger) {
+  if (!serieDatalogger || !serieDatalogger.length) return null;
+  const promSensor = promedio(serieSensor.map((s) => s.temp));
+  const promDatalogger = promedio(serieDatalogger.map((s) => s.temp));
+  if (promSensor == null || promDatalogger == null) return null;
+  const delta = +(promDatalogger - promSensor).toFixed(2);
+  return {
+    promSensor: +promSensor.toFixed(2),
+    promDatalogger: +promDatalogger.toFixed(2),
+    delta,
+    consistente: Math.abs(delta) <= TOLERANCIA_DATALOGGER_C,
+  };
+}
+
 function clasificarTemp(t) {
   if (t == null || isNaN(t)) return "sin-dato";
   if (t >= RANGO.optimoMin && t <= RANGO.optimoMax) return "optimo";
@@ -282,9 +311,10 @@ function seedData() {
       lineaGenetica: LINEAS_GENETICAS[i % LINEAS_GENETICAS.length],
     };
 
-    // --- Serie de temperatura ambiente en tránsito (sensores IoT) ---
+    // --- Serie de temperatura ambiente en tránsito (sensor del proveedor / unidad) ---
     const transitoSerie = [];
     const transitoEventos = [];
+    const transitoDatalogger = { fuente: null, dispositivoId: "", registradoPor: "", horaRegistro: "", serie: [] };
     if (["En Tránsito", "En Granja", "Finalizado"].includes(v.estado)) {
       const puntos = 8;
       let t0 = 30.5;
@@ -296,6 +326,20 @@ function seedData() {
       if (["En Granja", "Finalizado"].includes(v.estado) && v.horaLlegadaReal) {
         transitoEventos.push({ hora: v.horaLlegadaReal, descripcion: "Llegada a destino registrada" });
       }
+
+      // --- Datalogger independiente: contrasta al sensor del proveedor ---
+      // Casos alternados a propósito para la demo: uno con lectura consistente
+      // y otro con una desviación que dispara la alerta de discrepancia.
+      const esDiscrepante = i % 3 === 1;
+      const offset = esDiscrepante ? 1.1 : 0.15;
+      transitoDatalogger.fuente = ["Finalizado", "En Granja"].includes(v.estado) ? "manual" : "tiempo_real";
+      transitoDatalogger.dispositivoId = "DL-" + (2200 + i);
+      transitoDatalogger.horaRegistro = v.horaLlegadaReal || v.horaSalidaReal || "";
+      transitoDatalogger.registradoPor = transitoDatalogger.fuente === "manual" ? "Calidad · Transporte" : "";
+      transitoDatalogger.serie = transitoSerie.map((s) => ({
+        min: s.min,
+        temp: +(s.temp + offset + (Math.random() - 0.5) * 0.2).toFixed(1),
+      }));
     }
 
     // --- Registro en granja ---
@@ -354,7 +398,7 @@ function seedData() {
       ...v,
       geocercas,
       cargaPlanta,
-      transito: { serie: transitoSerie, eventos: transitoEventos },
+      transito: { serie: transitoSerie, eventos: transitoEventos, datalogger: transitoDatalogger },
       granja,
     };
   });
@@ -375,6 +419,7 @@ function sumarMin(hhmm, min) {
 const Store = {
   RANGO,
   PESO_REFERENCIA_G,
+  TOLERANCIA_DATALOGGER_C,
   clasificarTemp,
   promedio,
   maximo,
@@ -383,6 +428,7 @@ const Store = {
   calcularMortalidad,
   validarControlLlegada,
   tasaCrecimientoPct,
+  contrastarDatalogger,
 
   init() {
     if (!localStorage.getItem(DB_KEY)) {
@@ -419,7 +465,7 @@ const Store = {
       { nombre: (viaje.destino1 || "Destino") + " - Llegada", hora: "", estado: "Pendiente" },
     ];
     viaje.cargaPlanta = viaje.cargaPlanta || { tempAmbienteUnidad: null, muestras: [], horaRegistro: "", horaNacimiento: "", edadLoteSemanas: null, lineaGenetica: "" };
-    viaje.transito = viaje.transito || { serie: [], eventos: [] };
+    viaje.transito = viaje.transito || { serie: [], eventos: [], datalogger: { fuente: null, dispositivoId: "", registradoPor: "", horaRegistro: "", serie: [] } };
     viaje.granja = viaje.granja || null;
     viaje.estado = viaje.estado || "Programado";
     db.viajes.unshift(viaje);
