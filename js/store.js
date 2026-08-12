@@ -147,6 +147,108 @@ function validarControlLlegada({ f, m, total, cantidadDespachada, muertosTraslad
 }
 
 // ---------------------------------------------------------------
+// Checklist de preparación de galpones (recepción) — FICYB004 v2
+// -----------------------------------------------------------------
+// Se registra por PLANTEL + GALPÓN (no por viaje puntual): la visita
+// técnica se hace ~12 horas antes de la recepción y un mismo galpón
+// puede recibir varios lotes en el tiempo. Al programar un viaje hacia
+// un plantel/galpón, se consulta el último checklist de esa combinación.
+// ---------------------------------------------------------------
+const CHECKLIST_DB_KEY = "sf_thermo_checklists_v1";
+
+// 4 niveles por ítem, de peor a mejor (rojo/naranja/amarillo/verde en el
+// formato original). `null` = nivel no aplica para ese ítem (celda "—"/"-"
+// en el Excel de origen).
+const CHECKLIST_ITEMS = [
+  { nro: 1, actividad: "Doble cortaviento, doble portón herméticos, cielo raso cerrados en óptimas condiciones, con metros internos correctamente enterrados.", opciones: ["1 items", "2 items", "3 items", "4 items"], peso: 10 },
+  { nro: 2, actividad: "Adecuada nivelación de cama (4 corrales)", opciones: ["1 corral", "2 corrales", "3 corrales", "4 corrales"], peso: 5 },
+  { nro: 3, actividad: "Corrales de división (mínimo 4 corrales)", opciones: ["1 corral", "2 corrales", "3 corrales", "4 corrales"], peso: 5 },
+  { nro: 4, actividad: "Iluminación completa en todo del galpón (Iluminación artificial)", opciones: ["Falta 3 focos", "Falta 2 focos", "Falta 1 foco", "Completo"], peso: 5 },
+  { nro: 5, actividad: "Precalentamiento del galpón (campanas encendidas 18 horas).", opciones: ["<10 horas", "10 a 13 horas", "14 a 17 horas", "18 horas"], peso: 10 },
+  { nro: 6, actividad: "Criadoras: 1 para (semiautomáticas: max 1800) (Convencionales: max 650)", opciones: ["A ≥ 2100 / C ≥ 800", "A ≥ 2000 / C ≥ 750", "A ≥ 1900 / C ≥ 700", "A ≥ 1800 / C ≥ 650"], peso: 10 },
+  { nro: 7, actividad: "Disponibilidad de dos termohigrómetros operativos", opciones: ["0", null, "1", "2"], peso: 5 },
+  { nro: 8, actividad: "Disponibilidad de agua en todas las líneas de bebederos", opciones: ["≥3 filas", "2 filas", "1 fila", "Todas las filas"], peso: 10 },
+  { nro: 9, actividad: "Nivel de cloración del agua (3 a 5 ppm).", opciones: ["<3 a >6 ppm", "≤6 ppm", null, "≥3 a ≤5 ppm"], peso: 10 },
+  { nro: 10, actividad: "Comederos automáticos y logísticos enterrados con disponibilidad de alimento (plato lleno)", opciones: ["No enterrado / vacío", "Enterrado", "Lleno", "Lleno / enterrado"], peso: 10 },
+  { nro: 11, actividad: "Medición y control de pH del agua (5.5-6.5)", opciones: ["<5 o >6.5", "≥5.0 a <5.5", null, "≥5.5 a ≤6.5"], peso: 10 },
+  { nro: 12, actividad: "Evaluación de presencia de Alphitobius (cero)", opciones: ["Severo >20", "Moderado 11 a 20", "Leve 1 a 10", "Nulo = 0"], peso: 10 },
+  { nro: 13, actividad: "¿Con qué densidad se está recibiendo? (Ref: 40 a 50 aves/m² invierno máx.)", opciones: ["<40 a >50 aves/m²", null, null, "≥40 a ≤50 aves/m²"], peso: 10 },
+  { nro: 14, actividad: "Disponibilidad de 8 filas de papel Kraft (8 a 10 filas)", opciones: ["<8 filas", null, null, "8 a 10 filas"], peso: 5 },
+  { nro: 15, actividad: "Cantidad de comederos infantiles: mínimo 1 por cada 200 pollos por galpón", opciones: ["<1/200 pollos", null, null, "≥1/200 pollos"], peso: 10 },
+  { nro: 16, actividad: "Cantidad de bebederos infantiles (tongo) para lote joven: 60 bebederos", opciones: ["<21 und", "≥21 a <41 und", "≥41 a <60 und", "≥60 und"], peso: 10 },
+  { nro: 17, actividad: "Disponibilidad de 2 ventiladores instalados en el techo (opcional en las granjas que aplican)", opciones: ["0 ventiladores", null, "1 ventilador", "2 ventiladores"], peso: 5 },
+];
+
+const CHECKLIST_PESO_TOTAL = CHECKLIST_ITEMS.reduce((a, it) => a + it.peso, 0); // 140
+
+// Umbrales de %cumplimiento — referenciales, ajustar con el área técnica.
+const CHECKLIST_UMBRAL = { cumpleMin: 90, observacionesMin: 70 };
+
+function checklistKey(plantel, galpon) {
+  return `${(plantel || "").trim().toLowerCase()}|${(galpon || "").trim().toLowerCase()}`;
+}
+
+/**
+ * Calcula el puntaje a partir de las selecciones (índice 0-3 por ítem,
+ * o null si aún no se evaluó). El puntaje de cada ítem es proporcional
+ * al nivel elegido dentro de su peso: nivel 0 (peor) = 0, nivel 3
+ * (mejor) = 100% del peso del ítem.
+ */
+function calcularChecklist(selecciones) {
+  let puntaje = 0;
+  let itemsRespondidos = 0;
+  CHECKLIST_ITEMS.forEach((item, idx) => {
+    const sel = selecciones?.[idx]?.seleccion;
+    if (sel != null) {
+      itemsRespondidos++;
+      puntaje += item.peso * (sel / 3);
+    }
+  });
+  const totalItems = CHECKLIST_ITEMS.length;
+  const pctCumplimiento = itemsRespondidos ? +((puntaje / CHECKLIST_PESO_TOTAL) * 100).toFixed(1) : null;
+  return {
+    puntaje: +puntaje.toFixed(1),
+    pesoTotal: CHECKLIST_PESO_TOTAL,
+    itemsRespondidos,
+    totalItems,
+    completo: itemsRespondidos === totalItems,
+    pctCumplimiento,
+  };
+}
+
+/**
+ * Clasifica el estado del checklist para mostrarlo como badge en
+ * programación / viaje / granja.
+ * "sin-checklist" | "en-progreso" | "cumple" | "observaciones" | "no-cumple"
+ */
+function clasificarChecklist(checklist) {
+  if (!checklist) return "sin-checklist";
+  const r = calcularChecklist(checklist.selecciones);
+  if (r.itemsRespondidos === 0) return "sin-checklist";
+  if (!r.completo) return "en-progreso";
+  if (r.pctCumplimiento >= CHECKLIST_UMBRAL.cumpleMin) return "cumple";
+  if (r.pctCumplimiento >= CHECKLIST_UMBRAL.observacionesMin) return "observaciones";
+  return "no-cumple";
+}
+
+const CHECKLIST_ESTADO_LABEL = {
+  "sin-checklist": "Sin checklist",
+  "en-progreso": "En progreso",
+  cumple: "Cumple",
+  observaciones: "Cumple con observaciones",
+  "no-cumple": "No cumple",
+};
+
+// Clases de badge reutilizando la paleta ya definida en css/style.css
+const CHECKLIST_ESTADO_BADGE = {
+  "sin-checklist": "sin-dato",
+  "en-progreso": "en-transito",
+  cumple: "optimo",
+  observaciones: "alerta",
+  "no-cumple": "critico",
+};
+
+// ---------------------------------------------------------------
 // SEED — datos de ejemplo (simulan la carga por transacción Z-SAP)
 // ---------------------------------------------------------------
 const LINEAS_GENETICAS = ["Ross 308", "Cobb 500", "Hubbard Flex"];
@@ -159,13 +261,14 @@ const UBICACION_POR_DESTINO = {
   "Granja Huaral": { zona: "Zona Norte Chico", subzona: "Huaral", circuito: "Circuito 1", tipoPlantel: "Recría", supervisor: "Ana Belén Castro", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
 };
 
+function fechaISO(offsetDias = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDias);
+  return d.toISOString().slice(0, 10);
+}
+
 function seedData() {
-  const hoy = new Date();
-  const fecha = (offsetDias = 0) => {
-    const d = new Date(hoy);
-    d.setDate(d.getDate() + offsetDias);
-    return d.toISOString().slice(0, 10);
-  };
+  const fecha = fechaISO;
 
   const base = [
     {
@@ -535,6 +638,64 @@ function seedData() {
   return { viajes };
 }
 
+// --- SEED de checklists de galpón (independiente de los viajes) ---
+function construirSelecciones(niveles, observacionesPorIndice = {}) {
+  return CHECKLIST_ITEMS.map((item, idx) => ({
+    seleccion: niveles[idx] ?? null,
+    observaciones: observacionesPorIndice[idx] || "",
+  }));
+}
+
+function seedChecklists() {
+  const checklists = {};
+
+  const cl1 = {
+    plantel: "Granja Chincha Norte",
+    galpon: "G-08",
+    fecha: fechaISO(-1),
+    auditor: "Milagros Chávez Ríos",
+    supervisor: UBICACION_POR_DESTINO["Granja Chincha Norte"].supervisor,
+    firma: "Milagros Chávez Ríos",
+    selecciones: construirSelecciones(
+      [3, 3, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 2, 3],
+      {
+        6: "Falta el segundo termohigrómetro; se gestiona antes de las 12h previas a la recepción.",
+        15: "48 de 60 bebederos infantiles instalados; se completa el lote antes de la recepción.",
+      }
+    ),
+  };
+
+  const cl2 = {
+    plantel: "Granja Cañete Sur",
+    galpon: "G-03",
+    fecha: fechaISO(-2),
+    auditor: "Iván Salcedo Bravo",
+    supervisor: UBICACION_POR_DESTINO["Granja Cañete Sur"].supervisor,
+    firma: "Iván Salcedo Bravo",
+    selecciones: construirSelecciones(
+      [3, 2, 2, 3, 2, 3, 2, 2, 1, 3, 3, 2, 3, 0, 3, 2, 2],
+      { 13: "Solo 5 de 8 filas de papel Kraft disponibles; se refuerza antes de la recepción." }
+    ),
+  };
+
+  const cl3 = {
+    plantel: "Granja Huaral",
+    galpon: "G-05",
+    fecha: fechaISO(0),
+    auditor: "Fiorella Ramos Ibáñez",
+    supervisor: UBICACION_POR_DESTINO["Granja Huaral"].supervisor,
+    firma: "",
+    // Visita técnica en curso: solo los primeros 10 ítems evaluados.
+    selecciones: construirSelecciones([3, 2, 3, 2, 3, 2, 2, 3, 1, 2]),
+  };
+
+  [cl1, cl2, cl3].forEach((cl) => {
+    checklists[checklistKey(cl.plantel, cl.galpon)] = cl;
+  });
+
+  return checklists;
+}
+
 function sumarMin(hhmm, min) {
   const [h, m] = hhmm.split(":").map(Number);
   const d = new Date();
@@ -549,6 +710,11 @@ const Store = {
   RANGO,
   PESO_REFERENCIA_G,
   TOLERANCIA_DATALOGGER_C,
+  CHECKLIST_ITEMS,
+  CHECKLIST_PESO_TOTAL,
+  CHECKLIST_UMBRAL,
+  CHECKLIST_ESTADO_LABEL,
+  CHECKLIST_ESTADO_BADGE,
   clasificarTemp,
   promedio,
   maximo,
@@ -558,15 +724,21 @@ const Store = {
   validarControlLlegada,
   tasaCrecimientoPct,
   contrastarDatalogger,
+  calcularChecklist,
+  clasificarChecklist,
 
   init() {
     if (!localStorage.getItem(DB_KEY)) {
       localStorage.setItem(DB_KEY, JSON.stringify(seedData()));
     }
+    if (!localStorage.getItem(CHECKLIST_DB_KEY)) {
+      localStorage.setItem(CHECKLIST_DB_KEY, JSON.stringify(seedChecklists()));
+    }
   },
 
   reset() {
     localStorage.setItem(DB_KEY, JSON.stringify(seedData()));
+    localStorage.setItem(CHECKLIST_DB_KEY, JSON.stringify(seedChecklists()));
   },
 
   _read() {
@@ -615,6 +787,42 @@ const Store = {
     const db = this._read();
     db.viajes = db.viajes.filter((v) => v.id !== id);
     this._write(db);
+  },
+
+  // --- Checklist de preparación de galpones (FICYB004 v2) ---
+  _readChecklists() {
+    return JSON.parse(localStorage.getItem(CHECKLIST_DB_KEY) || "{}");
+  },
+
+  _writeChecklists(all) {
+    localStorage.setItem(CHECKLIST_DB_KEY, JSON.stringify(all));
+  },
+
+  getChecklists() {
+    return this._readChecklists();
+  },
+
+  getChecklist(plantel, galpon) {
+    return this._readChecklists()[checklistKey(plantel, galpon)] || null;
+  },
+
+  saveChecklist(checklist) {
+    const all = this._readChecklists();
+    all[checklistKey(checklist.plantel, checklist.galpon)] = checklist;
+    this._writeChecklists(all);
+    return checklist;
+  },
+
+  checklistVacio(plantel, galpon) {
+    return {
+      plantel: plantel || "",
+      galpon: galpon || "",
+      fecha: "",
+      auditor: "",
+      supervisor: "",
+      firma: "",
+      selecciones: CHECKLIST_ITEMS.map(() => ({ seleccion: null, observaciones: "" })),
+    };
   },
 };
 

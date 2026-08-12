@@ -37,6 +37,9 @@
     const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
     const g = v.granja?.galpones?.[0];
     const contraste = Store.contrastarDatalogger(v.transito.serie, v.transito.datalogger?.serie || []);
+    const checklistViaje = Store.getChecklist(v.destino1, v.galpon);
+    const estadoChecklist = Store.clasificarChecklist(checklistViaje);
+    const checklistHref = `checklist.html?plantel=${encodeURIComponent(v.destino1 || "")}&galpon=${encodeURIComponent(v.galpon || "")}`;
 
     cont.innerHTML = `
       <div class="flex-between wrap" style="margin-bottom:16px;">
@@ -93,7 +96,10 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h3>Condiciones del galpón de destino</h3></div>
+          <div class="card-head">
+            <h3>Condiciones del galpón de destino</h3>
+            <a href="${checklistHref}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[estadoChecklist]}" style="text-decoration:none;">Checklist: ${Store.CHECKLIST_ESTADO_LABEL[estadoChecklist]}</a>
+          </div>
           ${
             g
               ? `<div class="grid grid-2" style="font-size:12.5px; gap:10px;">

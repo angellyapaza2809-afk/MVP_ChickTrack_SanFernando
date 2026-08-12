@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Checklist de preparación de galpón · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "checklist";
+  window.PAGE_TITLE = "Checklist de preparación de galpón";
+  window.PAGE_SUBTITLE = "Recepción de pollo BB — FICYB004 v2 · se evalúa por Plantel + Galpón, no por viaje puntual";
+</script>
+
+<template id="tpl-content">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="grid grid-4">
+      <div class="field"><label>Plantel (Granja)</label>
+        <input class="mono" id="ck-plantel" list="ck-plantel-list" placeholder="Granja Chincha Norte" />
+        <datalist id="ck-plantel-list"></datalist>
+      </div>
+      <div class="field"><label>Galpón</label>
+        <input class="mono" id="ck-galpon" list="ck-galpon-list" placeholder="G-08" />
+        <datalist id="ck-galpon-list"></datalist>
+      </div>
+      <div class="field"><label>Fecha de visita técnica</label><input class="mono" type="date" id="ck-fecha" /></div>
+      <div class="field"><label>Auditor</label><input id="ck-auditor" placeholder="Nombres completos" /></div>
+      <div class="field"><label>Supervisor</label><input id="ck-supervisor" placeholder="Nombres completos" /></div>
+      <div class="field"><label>Firma (confirmación)</label><input id="ck-firma" placeholder="Nombre de quien firma" /></div>
+      <div class="field" style="grid-column: span 2;">
+        <label>&nbsp;</label>
+        <button class="btn btn-sm" id="btn-cargar" type="button">Cargar checklist de este plantel / galpón</button>
+      </div>
+    </div>
+    <p class="faint" style="font-size:12px; margin:4px 0 0;">Consideración: la visita técnica se realiza 12 horas previo a la recepción del lote.</p>
+  </div>
+
+  <div class="grid grid-4" id="ck-resultado" style="margin-bottom:16px;"></div>
+
+  <div class="card">
+    <div class="card-head"><h3>Ítems de evaluación</h3><span class="hint">Selecciona el nivel alcanzado en cada ítem</span></div>
+    <div class="table-wrap" style="box-shadow:none; border:none;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px;">Nro</th>
+            <th style="min-width:260px;">Actividad</th>
+            <th style="min-width:260px;">Nivel alcanzado</th>
+            <th class="num">Peso</th>
+            <th class="num">Puntaje</th>
+            <th style="min-width:200px;">Observaciones</th>
+          </tr>
+        </thead>
+        <tbody id="ck-items-body"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3"></td>
+            <td class="num mono" id="ck-peso-total" style="font-weight:700;"></td>
+            <td class="num mono" id="ck-puntaje-total" style="font-weight:700;"></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <button class="btn btn-primary" style="margin-top:16px;" id="btn-guardar-checklist" type="button">Guardar checklist</button>
+    <p class="faint" id="msg-checklist" style="margin-top:10px; font-size:12px;"></p>
+    <p class="faint" style="font-size:11px; margin-top:14px;">Documento: FICYB004 v2 — Check list de preparación de galpones, recepción · Referencia: IICYB008 Transporte de pollo BB</p>
+  </div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const NIVEL_COLOR = ["#e2231a", "#e8a23d", "#c9a227", "#2f9d58"];
+
+  function pillHtml(itemIdx, nivelIdx, texto, seleccionActual) {
+    if (texto == null) return "";
+    const activo = seleccionActual === nivelIdx;
+    const color = NIVEL_COLOR[nivelIdx];
+    const style = activo
+      ? `border-color:${color}; color:${color}; background:${color}18;`
+      : "";
+    return `<button type="button" class="btn btn-sm nivel-pill" data-item="${itemIdx}" data-nivel="${nivelIdx}" style="${style} margin:2px 4px 2px 0;">${texto}</button>`;
+  }
+
+  function pintarItems(selecciones) {
+    const tbody = document.getElementById("ck-items-body");
+    tbody.innerHTML = Store.CHECKLIST_ITEMS.map((item, idx) => {
+      const sel = selecciones[idx]?.seleccion ?? null;
+      const puntaje = sel != null ? +(item.peso * (sel / 3)).toFixed(1) : null;
+      return `
+        <tr data-row-item="${idx}">
+          <td class="mono">${item.nro}</td>
+          <td style="white-space:normal;">${item.actividad}</td>
+          <td style="white-space:normal;">${item.opciones.map((op, ni) => pillHtml(idx, ni, op, sel)).join("")}</td>
+          <td class="num mono">${item.peso}</td>
+          <td class="num mono" data-puntaje-cell>${puntaje != null ? puntaje.toFixed(1) : "—"}</td>
+          <td><input class="obs-input" data-item="${idx}" value="${(selecciones[idx]?.observaciones || "").replace(/"/g, "&quot;")}" placeholder="Opcional" style="font-size:12.5px; padding:6px 8px;" /></td>
+        </tr>`;
+    }).join("");
+  }
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const viajes = Store.getViajes();
+    const plantelesDistintos = [...new Set(viajes.map((v) => v.destino1).filter(Boolean))].sort();
+    document.getElementById("ck-plantel-list").innerHTML = plantelesDistintos.map((p) => `<option value="${p}">`).join("");
+
+    function actualizarGalponesDatalist() {
+      const plantelActual = document.getElementById("ck-plantel").value.trim();
+      const galpones = new Set(
+        viajes.filter((v) => v.destino1 === plantelActual).map((v) => v.galpon).filter(Boolean)
+      );
+      Object.values(Store.getChecklists())
+        .filter((c) => c.plantel === plantelActual)
+        .forEach((c) => galpones.add(c.galpon));
+      document.getElementById("ck-galpon-list").innerHTML = [...galpones].sort().map((g) => `<option value="${g}">`).join("");
+    }
+    document.getElementById("ck-plantel").addEventListener("input", actualizarGalponesDatalist);
+    actualizarGalponesDatalist();
+
+    let checklistActual = null;
+
+    function pintarResultado() {
+      const r = Store.calcularChecklist(checklistActual.selecciones);
+      const estado = Store.clasificarChecklist(checklistActual);
+      const label = Store.CHECKLIST_ESTADO_LABEL[estado];
+      const badgeCls = Store.CHECKLIST_ESTADO_BADGE[estado];
+      document.getElementById("ck-resultado").innerHTML = `
+        <div class="card kpi-card">
+          <div class="kpi-label">Puntaje obtenido</div>
+          <div class="kpi-value">${r.puntaje.toFixed(1)} <span class="faint" style="font-size:14px;">/ ${r.pesoTotal}</span></div>
+          <div class="kpi-delta">${r.itemsRespondidos} / ${r.totalItems} ítems evaluados</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">% Cumplimiento</div>
+          <div class="kpi-value ${badgeCls === "critico" ? "heat" : badgeCls === "alerta" ? "warn" : "cool"}">${r.pctCumplimiento != null ? r.pctCumplimiento.toFixed(1) + "%" : "—"}</div>
+          <div class="kpi-delta">Meta: ≥ ${Store.CHECKLIST_UMBRAL.cumpleMin}% cumple · ≥ ${Store.CHECKLIST_UMBRAL.observacionesMin}% con observaciones</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Estado</div>
+          <div class="kpi-value" style="font-size:16px; margin-top:6px;"><span class="badge ${badgeCls}">${label}</span></div>
+          <div class="kpi-delta">Plantel: ${checklistActual.plantel || "—"} · Galpón: ${checklistActual.galpon || "—"}</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Última visita técnica</div>
+          <div class="kpi-value" style="font-size:16px; margin-top:6px;">${checklistActual.fecha ? Util.fmtFecha(checklistActual.fecha) : "—"}</div>
+          <div class="kpi-delta">Auditor: ${checklistActual.auditor || "—"}</div>
+        </div>
+      `;
+    }
+
+    function cargar(plantel, galpon) {
+      const existente = Store.getChecklist(plantel, galpon);
+      checklistActual = existente || Store.checklistVacio(plantel, galpon);
+      document.getElementById("ck-plantel").value = checklistActual.plantel;
+      document.getElementById("ck-galpon").value = checklistActual.galpon;
+      document.getElementById("ck-fecha").value = checklistActual.fecha || "";
+      document.getElementById("ck-auditor").value = checklistActual.auditor || "";
+      document.getElementById("ck-supervisor").value = checklistActual.supervisor || "";
+      document.getElementById("ck-firma").value = checklistActual.firma || "";
+      actualizarGalponesDatalist();
+      pintarItems(checklistActual.selecciones);
+      pintarTotales();
+      pintarResultado();
+      document.getElementById("msg-checklist").textContent = "";
+    }
+
+    function pintarTotales() {
+      document.getElementById("ck-peso-total").textContent = Store.CHECKLIST_PESO_TOTAL;
+      const r = Store.calcularChecklist(checklistActual.selecciones);
+      document.getElementById("ck-puntaje-total").textContent = r.puntaje.toFixed(1);
+    }
+
+    document.getElementById("ck-items-body").addEventListener("click", (e) => {
+      const btn = e.target.closest(".nivel-pill");
+      if (!btn) return;
+      const idx = parseInt(btn.getAttribute("data-item"), 10);
+      const nivel = parseInt(btn.getAttribute("data-nivel"), 10);
+      checklistActual.selecciones[idx].seleccion = checklistActual.selecciones[idx].seleccion === nivel ? null : nivel;
+      pintarItems(checklistActual.selecciones);
+      pintarTotales();
+      pintarResultado();
+    });
+
+    document.getElementById("ck-items-body").addEventListener("input", (e) => {
+      if (!e.target.classList.contains("obs-input")) return;
+      const idx = parseInt(e.target.getAttribute("data-item"), 10);
+      checklistActual.selecciones[idx].observaciones = e.target.value;
+    });
+
+    document.getElementById("btn-cargar").addEventListener("click", () => {
+      cargar(document.getElementById("ck-plantel").value, document.getElementById("ck-galpon").value);
+    });
+
+    document.getElementById("btn-guardar-checklist").addEventListener("click", () => {
+      const plantel = document.getElementById("ck-plantel").value.trim();
+      const galpon = document.getElementById("ck-galpon").value.trim();
+      if (!plantel || !galpon) { alert("Indica Plantel y Galpón antes de guardar."); return; }
+      checklistActual.plantel = plantel;
+      checklistActual.galpon = galpon;
+      checklistActual.fecha = document.getElementById("ck-fecha").value;
+      checklistActual.auditor = document.getElementById("ck-auditor").value;
+      checklistActual.supervisor = document.getElementById("ck-supervisor").value;
+      checklistActual.firma = document.getElementById("ck-firma").value;
+      Store.saveChecklist(checklistActual);
+      document.getElementById("msg-checklist").textContent = "✓ Checklist guardado — " + new Date().toLocaleTimeString("es-PE");
+      actualizarGalponesDatalist();
+      pintarResultado();
+    });
+
+    const plantelInicial = Util.qs("plantel") || "";
+    const galponInicial = Util.qs("galpon") || "";
+    cargar(plantelInicial, galponInicial);
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>
