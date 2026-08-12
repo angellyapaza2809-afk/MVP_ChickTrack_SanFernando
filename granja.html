@@ -200,11 +200,13 @@
 
       det.innerHTML = `${v.dtSap} · ${v.destino1} · Lote ${v.edadLotes} · Unidad ${v.unidad} · ${Util.badgeEstado(v.estado)}`;
 
-      const checklistGranja = Store.getChecklist(v.destino1, v.galpon);
-      const estadoChecklistGranja = Store.clasificarChecklist(checklistGranja);
-      const checklistHrefGranja = `checklist.html?plantel=${encodeURIComponent(v.destino1 || "")}&galpon=${encodeURIComponent(v.galpon || "")}`;
-      document.getElementById("g-checklist-badge").innerHTML =
-        `<a href="${checklistHrefGranja}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[estadoChecklistGranja]}" style="text-decoration:none;">Checklist: ${Store.CHECKLIST_ESTADO_LABEL[estadoChecklistGranja]}</a>`;
+      document.getElementById("g-checklist-badge").innerHTML = Store.destinosGalpones(v)
+        .map((p) => {
+          const estado = Store.clasificarChecklist(Store.getChecklist(p.destino, p.galpon));
+          const href = `checklist.html?plantel=${encodeURIComponent(p.destino)}&galpon=${encodeURIComponent(p.galpon || "")}`;
+          return `<a href="${href}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[estado]}" style="text-decoration:none; margin-left:6px;">${p.galpon || "—"}: ${Store.CHECKLIST_ESTADO_LABEL[estado]}</a>`;
+        })
+        .join("");
 
       const g = v.granja;
       const galpon = g?.galpones?.[0];

@@ -27,12 +27,14 @@
           <div class="field"><label>Ruta (SAP)</label><input class="mono" name="ruta" placeholder="R-014" /></div>
           <div class="field"><label>Planta origen <span class="req">*</span></label><input name="planta" placeholder="Planta Incubación Lurín" required /></div>
           <div class="field"><label>Destino 1 <span class="req">*</span></label><input name="destino1" placeholder="Granja Chincha Norte" required /></div>
-          <div class="field"><label>Destino 2</label><input name="destino2" placeholder="Opcional" /></div>
+          <div class="field"><label>Galpón (destino 1)</label><input class="mono" name="galpon" placeholder="G-08" /></div>
+          <div class="field"><label>Destino 2</label><input name="destino2" placeholder="Opcional — si el camión descarga en más de un galpón" /></div>
+          <div class="field"><label>Galpón (destino 2)</label><input class="mono" name="galpon2" placeholder="Opcional" /></div>
           <div class="field"><label>Destino 3</label><input name="destino3" placeholder="Opcional" /></div>
+          <div class="field"><label>Galpón (destino 3)</label><input class="mono" name="galpon3" placeholder="Opcional" /></div>
           <div class="field"><label>Producto</label><input name="producto" value="Pollo BB" readonly /></div>
           <div class="field"><label>Cantidad producida</label><input class="mono" type="number" name="cantidad" placeholder="24000" /></div>
           <div class="field"><label>Edad / Lotes</label><input name="edadLotes" placeholder="Lote 231-A" /></div>
-          <div class="field"><label>Galpón</label><input class="mono" name="galpon" placeholder="G-08" /></div>
           <div class="field"><label>Punto de carga</label><input name="puntoCarga" placeholder="Andén 3" /></div>
           <div class="field"><label>Unidad programada</label><input class="mono" name="unidad" placeholder="T-118" /></div>
           <div class="field"><label>Placa</label><input class="mono" name="placa" placeholder="F4X-812" /></div>
@@ -99,17 +101,26 @@
     document.querySelector('input[name="fecha"]').value = today;
 
     function actualizarChecklistEnVivo() {
-      const plantel = document.querySelector('input[name="destino1"]').value.trim();
-      const galpon = document.querySelector('input[name="galpon"]').value.trim();
+      const pares = Store.destinosGalpones({
+        destino1: document.querySelector('input[name="destino1"]').value.trim(),
+        galpon: document.querySelector('input[name="galpon"]').value.trim(),
+        destino2: document.querySelector('input[name="destino2"]').value.trim(),
+        galpon2: document.querySelector('input[name="galpon2"]').value.trim(),
+        destino3: document.querySelector('input[name="destino3"]').value.trim(),
+        galpon3: document.querySelector('input[name="galpon3"]').value.trim(),
+      }).filter((p) => p.galpon);
       const cont = document.getElementById("ck-live-status");
-      if (!plantel || !galpon) {
-        cont.innerHTML = "Escribe Destino 1 y Galpón para ver el estado del checklist de preparación de ese galpón.";
+      if (!pares.length) {
+        cont.innerHTML = "Escribe Destino y Galpón (uno por cada galpón donde descarga el camión) para ver el estado de sus checklists de preparación.";
         return;
       }
-      cont.innerHTML = `Checklist de <strong>${plantel} · ${galpon}</strong>: ${checklistBadgeHtml(plantel, galpon)}`;
+      cont.innerHTML = pares
+        .map((p) => `Checklist de <strong>${p.destino} · ${p.galpon}</strong>: ${checklistBadgeHtml(p.destino, p.galpon)}`)
+        .join("<br/>");
     }
-    document.querySelector('input[name="destino1"]').addEventListener("input", actualizarChecklistEnVivo);
-    document.querySelector('input[name="galpon"]').addEventListener("input", actualizarChecklistEnVivo);
+    ["destino1", "galpon", "destino2", "galpon2", "destino3", "galpon3"].forEach((name) => {
+      document.querySelector(`input[name="${name}"]`).addEventListener("input", actualizarChecklistEnVivo);
+    });
     actualizarChecklistEnVivo();
 
     function draw() {
@@ -138,7 +149,7 @@
           <td>${v.conductor}</td>
           <td class="mono">${Util.fmtHora(v.horaSalidaPlan)}</td>
           <td>${Util.badgeEstado(v.estado)}</td>
-          <td>${checklistBadgeHtml(v.destino1, v.galpon)}</td>
+          <td>${Store.destinosGalpones(v).map((p) => checklistBadgeHtml(p.destino, p.galpon)).join(" ") || "—"}</td>
           <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver →</a></td>
         </tr>`
         )

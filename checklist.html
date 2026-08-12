@@ -63,7 +63,10 @@
         </tfoot>
       </table>
     </div>
-    <button class="btn btn-primary" style="margin-top:16px;" id="btn-guardar-checklist" type="button">Guardar checklist</button>
+    <div class="flex gap-8" style="margin-top:16px;">
+      <button class="btn btn-primary" id="btn-guardar-checklist" type="button">Guardar checklist</button>
+      <button class="btn" id="btn-exportar-excel" type="button">⇩ Exportar a Excel (formato FICYB004)</button>
+    </div>
     <p class="faint" id="msg-checklist" style="margin-top:10px; font-size:12px;"></p>
     <p class="faint" style="font-size:11px; margin-top:14px;">Documento: FICYB004 v2 — Check list de preparación de galpones, recepción · Referencia: IICYB008 Transporte de pollo BB</p>
   </div>
@@ -71,6 +74,7 @@
 
 <script src="js/store.js"></script>
 <script src="js/util.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
   const NIVEL_COLOR = ["#e2231a", "#e8a23d", "#c9a227", "#2f9d58"];
 
@@ -99,6 +103,144 @@
           <td><input class="obs-input" data-item="${idx}" value="${(selecciones[idx]?.observaciones || "").replace(/"/g, "&quot;")}" placeholder="Opcional" style="font-size:12.5px; padding:6px 8px;" /></td>
         </tr>`;
     }).join("");
+  }
+
+  // Colores exactos de las columnas Opción 1-4 en el Excel de origen
+  // (FICYB004 v2): rojo / naranja / amarillo / verde, peor a mejor.
+  const EXCEL_COLOR_OPCION = ["FFFF0000", "FFFFC000", "FFFFFF00", "FF92D050"];
+  const THIN = { style: "thin", color: { argb: "FFBFBFBF" } };
+  const BORDE_FINO = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+
+  /**
+   * Genera un .xlsx que replica el formato del check list original
+   * (FICYB004 v2): mismo título, cabecera, tabla de 17 ítems con las
+   * columnas de opciones coloreadas, fila TOTAL/%CUMPLIMIENTO y pie de
+   * página. La opción marcada por el usuario queda resaltada en negrita
+   * y con borde grueso dentro de su celda de color.
+   */
+  async function exportarChecklistExcel(checklist) {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Ciclo Térmico BB — San Fernando";
+    wb.created = new Date();
+    const ws = wb.addWorksheet("PVersion2", { views: [{ showGridLines: false }] });
+
+    ws.columns = [
+      { width: 6 }, { width: 60 }, { width: 18 }, { width: 18 },
+      { width: 18 }, { width: 18 }, { width: 8 }, { width: 10 }, { width: 32 },
+    ];
+
+    const fontBase = { name: "Arial", size: 11 };
+    const fontBold = { name: "Arial", size: 12, bold: true };
+    const centerWrap = { horizontal: "center", vertical: "middle", wrapText: true };
+
+    ws.mergeCells("B1:H1");
+    ws.getCell("B1").value = "CHECK LIST DE PREPARACIÓN DE GALPONES, RECEPCION.";
+    ws.getCell("B1").font = fontBold;
+    ws.getCell("B1").alignment = centerWrap;
+    ws.getCell("I1").value = "CODIGO: FICYB004\nVERSIÓN: 2";
+    ws.getCell("I1").font = { name: "Arial", size: 9 };
+    ws.getCell("I1").alignment = centerWrap;
+    ws.getRow(1).height = 40;
+
+    ws.getCell("A2").value = "FECHA:"; ws.getCell("A2").font = fontBold; ws.getCell("A2").alignment = centerWrap;
+    ws.getCell("B2").value = checklist.fecha || "";
+    ws.getCell("C2").value = "AUDITOR:"; ws.getCell("C2").font = fontBold; ws.getCell("C2").alignment = centerWrap;
+    ws.mergeCells("D2:I2"); ws.getCell("D2").value = checklist.auditor || "";
+
+    ws.mergeCells("A3:A4"); ws.getCell("A3").value = "SUPERVISOR:"; ws.getCell("A3").font = fontBold; ws.getCell("A3").alignment = centerWrap;
+    ws.mergeCells("B3:B4"); ws.getCell("B3").value = checklist.supervisor || ""; ws.getCell("B3").alignment = centerWrap;
+    ws.getCell("C3").value = "FIRMA:"; ws.getCell("C3").font = fontBold; ws.getCell("C3").alignment = centerWrap;
+    ws.mergeCells("D3:I3"); ws.getCell("D3").value = checklist.firma || "";
+    ws.getCell("C4").value = "PLANTEL:"; ws.getCell("C4").font = fontBold; ws.getCell("C4").alignment = centerWrap;
+    ws.mergeCells("D4:I4"); ws.getCell("D4").value = checklist.plantel || "";
+
+    ws.mergeCells("A5:I5");
+    ws.getCell("A5").value = "Consideraciones: La visita tecnica se realizara 12 horas previo a la recepcion";
+    ws.getCell("A5").font = fontBold;
+    ws.getCell("A5").alignment = centerWrap;
+
+    const encabezados = ["Nro", "ACTIVIDAD", "Opción 1", "opción 2", "opción 3", "opción 4", "Peso", "Puntaje", "Observaciones"];
+    ws.getRow(6).values = encabezados;
+    ws.getRow(6).height = 30;
+    ws.getRow(6).eachCell((cell, col) => {
+      cell.font = fontBold;
+      cell.alignment = centerWrap;
+      cell.border = BORDE_FINO;
+      if (col >= 3 && col <= 6) {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_COLOR_OPCION[col - 3] } };
+      }
+    });
+
+    Store.CHECKLIST_ITEMS.forEach((item, idx) => {
+      const rowNum = 7 + idx;
+      const row = ws.getRow(rowNum);
+      const sel = checklist.selecciones[idx]?.seleccion;
+      const puntaje = sel != null ? +(item.peso * (sel / 3)).toFixed(1) : null;
+
+      row.getCell(1).value = item.nro;
+      row.getCell(2).value = item.actividad;
+      row.getCell(2).alignment = { vertical: "middle", wrapText: true };
+      item.opciones.forEach((op, ni) => {
+        const cell = row.getCell(3 + ni);
+        cell.value = op == null ? "—" : op;
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_COLOR_OPCION[ni] } };
+        cell.alignment = centerWrap;
+        cell.font = sel === ni ? { name: "Arial", size: 11, bold: true } : fontBase;
+        if (sel === ni) {
+          const thick = { style: "medium", color: { argb: "FF000000" } };
+          cell.border = { top: thick, left: thick, bottom: thick, right: thick };
+        }
+      });
+      row.getCell(7).value = item.peso;
+      row.getCell(7).alignment = centerWrap;
+      row.getCell(8).value = puntaje;
+      row.getCell(8).alignment = centerWrap;
+      row.getCell(9).value = checklist.selecciones[idx]?.observaciones || "";
+      row.getCell(9).alignment = { vertical: "middle", wrapText: true };
+      row.height = 30;
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = cell.font || fontBase;
+        cell.border = cell.border || BORDE_FINO;
+      });
+    });
+
+    ws.mergeCells("A24:B24");
+    ws.getCell("A24").value = "TOTAL";
+    ws.getCell("A24").font = fontBold;
+    ws.getCell("A24").alignment = centerWrap;
+
+    ws.mergeCells("A25:D25");
+    ws.getCell("A25").value = "%CUMPLIMIENTO";
+    ws.getCell("A25").font = fontBold;
+    ws.getCell("A25").alignment = centerWrap;
+    ws.getCell("G25").value = Store.CHECKLIST_PESO_TOTAL;
+    ws.getCell("G25").font = fontBold;
+    ws.getCell("G25").alignment = centerWrap;
+    const r = Store.calcularChecklist(checklist.selecciones);
+    ws.getCell("H25").value = r.puntaje;
+    ws.getCell("H25").font = fontBold;
+    ws.getCell("H25").alignment = centerWrap;
+    ws.getCell("I25").value = r.pctCumplimiento != null ? `${r.pctCumplimiento.toFixed(1)}%` : "";
+    ws.getCell("I25").font = fontBold;
+    ws.getCell("I25").alignment = centerWrap;
+
+    ws.getCell("A27").value = "Fecha de vigencia";
+    ws.getCell("A27").font = fontBase;
+    ws.getCell("A28").value = "10/11/2025";
+    ws.mergeCells("D27:I28");
+    ws.getCell("D27").value = "IICYB008 Transporte de pollo BB";
+    ws.getCell("D27").alignment = centerWrap;
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Checklist_${checklist.plantel || "galpon"}_${checklist.galpon || ""}`.replace(/[^\w-]+/g, "_") + ".xlsx";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   window.initPage = function () {
@@ -211,6 +353,17 @@
       document.getElementById("msg-checklist").textContent = "✓ Checklist guardado — " + new Date().toLocaleTimeString("es-PE");
       actualizarGalponesDatalist();
       pintarResultado();
+    });
+
+    document.getElementById("btn-exportar-excel").addEventListener("click", async () => {
+      const msg = document.getElementById("msg-checklist");
+      try {
+        await exportarChecklistExcel(checklistActual);
+        msg.textContent = "✓ Excel exportado — " + new Date().toLocaleTimeString("es-PE");
+      } catch (err) {
+        console.error("No se pudo exportar el checklist a Excel:", err);
+        msg.textContent = "⚠ No se pudo generar el Excel (revisa tu conexión al CDN de ExcelJS).";
+      }
     });
 
     const plantelInicial = Util.qs("plantel") || "";

@@ -37,9 +37,11 @@
     const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
     const g = v.granja?.galpones?.[0];
     const contraste = Store.contrastarDatalogger(v.transito.serie, v.transito.datalogger?.serie || []);
-    const checklistViaje = Store.getChecklist(v.destino1, v.galpon);
-    const estadoChecklist = Store.clasificarChecklist(checklistViaje);
-    const checklistHref = `checklist.html?plantel=${encodeURIComponent(v.destino1 || "")}&galpon=${encodeURIComponent(v.galpon || "")}`;
+    const checklistsViaje = Store.destinosGalpones(v).map((p) => ({
+      ...p,
+      estado: Store.clasificarChecklist(Store.getChecklist(p.destino, p.galpon)),
+      href: `checklist.html?plantel=${encodeURIComponent(p.destino)}&galpon=${encodeURIComponent(p.galpon || "")}`,
+    }));
 
     cont.innerHTML = `
       <div class="flex-between wrap" style="margin-bottom:16px;">
@@ -96,9 +98,14 @@
         </div>
 
         <div class="card">
-          <div class="card-head">
-            <h3>Condiciones del galpón de destino</h3>
-            <a href="${checklistHref}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[estadoChecklist]}" style="text-decoration:none;">Checklist: ${Store.CHECKLIST_ESTADO_LABEL[estadoChecklist]}</a>
+          <div class="card-head"><h3>Condiciones del galpón de destino</h3></div>
+          <div class="flex gap-8 wrap" style="margin:-4px 0 12px;">
+            ${checklistsViaje
+              .map(
+                (c) =>
+                  `<a href="${c.href}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[c.estado]}" style="text-decoration:none;">${c.destino} · ${c.galpon || "—"}: ${Store.CHECKLIST_ESTADO_LABEL[c.estado]}</a>`
+              )
+              .join("")}
           </div>
           ${
             g
