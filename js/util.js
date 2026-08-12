@@ -26,6 +26,20 @@ function fmtFecha(f) {
   return `${d}/${m}/${y}`;
 }
 
+// Convierte una hora en formato 24h "HH:MM" (el que usan los <input type="time">)
+// a formato 12h con a. m. / p. m. para que no haya ambigüedad al leerla:
+// "13:15" -> "1:15 p. m." · "01:15" -> "1:15 a. m."
+function fmtHora(hhmm) {
+  if (!hhmm) return "—";
+  const [hStr, mStr] = hhmm.split(":");
+  const h = Number(hStr);
+  if (isNaN(h) || mStr == null) return hhmm;
+  const periodo = h < 12 ? "a. m." : "p. m.";
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return `${h12}:${mStr} ${periodo}`;
+}
+
 function minutosEntre(hhmm1, hhmm2) {
   if (!hhmm1 || !hhmm2) return null;
   const [h1, m1] = hhmm1.split(":").map(Number);
@@ -48,4 +62,4 @@ function qs(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-window.Util = { slug, badgeEstado, badgeTemp, fmtFecha, minutosEntre, fillSelectViajes, qs };
+window.Util = { slug, badgeEstado, badgeTemp, fmtFecha, fmtHora, minutosEntre, fillSelectViajes, qs };

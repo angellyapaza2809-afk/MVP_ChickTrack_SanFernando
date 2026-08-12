@@ -39,10 +39,11 @@
       <div class="card-head"><h3>Complex</h3></div>
 
       <div class="grid grid-2">
-        <div class="field"><label>Plantel (Granja)</label><input class="mono" id="g-plantel" placeholder="Granja Chincha Norte" /></div>
-        <div class="field"><label>Galpón</label><input class="mono" id="g-lote-galpon" placeholder="G-08" /></div>
-        <div class="field"><label>Campaña</label><input class="mono" id="g-campana" placeholder="Lote 231-A" /></div>
+        <div class="field"><label>Plantel (Granja)</label><input class="mono" id="g-plantel" readonly /></div>
+        <div class="field"><label>Galpón</label><input class="mono" id="g-lote-galpon" readonly /></div>
+        <div class="field"><label>Campaña</label><input class="mono" id="g-campana" readonly /></div>
       </div>
+      <p class="faint" style="font-size:11px; margin:-6px 0 0;">Vienen de la programación (SAP) — no se vuelven a digitar.</p>
 
       <h3 style="font-size:13px; margin:14px 0 8px;">Sexo del lote</h3>
       <div class="grid grid-2">
@@ -53,7 +54,7 @@
 
       <h3 style="font-size:13px; margin:14px 0 8px;">Mortalidad durante el transporte</h3>
       <div class="grid grid-2">
-        <div class="field"><label>Cantidad despachada</label><input class="mono" type="number" step="1" min="0" id="g-despachada" placeholder="10000" /></div>
+        <div class="field"><label>Cantidad despachada (según programación)</label><input class="mono" id="g-despachada" readonly /></div>
         <div class="field"><label>Muertos durante el trayecto</label><input class="mono" type="number" step="1" min="0" id="g-muertos" placeholder="25" /></div>
         <div class="field"><label>Mortalidad (%) — calculada</label><input class="mono" id="g-mortalidad" readonly /></div>
         <div class="field"><label>Uniformidad calculada (%)</label><input class="mono" id="g-uniformidad" readonly /></div>
@@ -218,13 +219,15 @@
       document.getElementById("g-coordinador").value = ubic?.coordinador || "";
       document.getElementById("g-franquicia").value = ubic?.franquicia || "";
 
+      // Plantel, galpón, campaña y cantidad despachada ya viajan desde la
+      // programación (SAP) — no se le vuelve a pedir al usuario que los digite.
       const lote = g?.loteRecepcion;
-      document.getElementById("g-plantel").value = lote?.plantel ?? v.destino1 ?? "";
-      document.getElementById("g-lote-galpon").value = lote?.galpon ?? v.galpon ?? "";
-      document.getElementById("g-campana").value = lote?.campana ?? v.edadLotes ?? "";
+      document.getElementById("g-plantel").value = v.destino1 ?? "";
+      document.getElementById("g-lote-galpon").value = v.galpon ?? "";
+      document.getElementById("g-campana").value = v.edadLotes ?? "";
       document.getElementById("g-sexo-f").value = lote?.sexo?.F ?? "";
       document.getElementById("g-sexo-m").value = lote?.sexo?.M ?? "";
-      document.getElementById("g-despachada").value = lote?.transporte?.cantidadDespachada ?? v.cantidad ?? "";
+      document.getElementById("g-despachada").value = v.cantidad ?? "";
       document.getElementById("g-muertos").value = lote?.transporte?.muertosTraslado ?? "";
       recalcSexoLote();
       recalcMortalidad();
@@ -245,9 +248,9 @@
       const promL = Store.promedio(muestras.map((m) => m.tempCloacal).filter((t) => t != null));
       cont.innerHTML = "";
       renderThermalRibbon(cont, [
-        { label: "Salida planta", sub: v.horaSalidaReal || v.horaSalidaPlan, temp: promC },
+        { label: "Salida planta", sub: Util.fmtHora(v.horaSalidaReal || v.horaSalidaPlan), temp: promC },
         { label: "Tránsito (amb.)", sub: "unidad temperada", temp: promAmb },
-        { label: "Llegada granja", sub: v.horaLlegadaReal, temp: promL },
+        { label: "Llegada granja", sub: Util.fmtHora(v.horaLlegadaReal), temp: promL },
       ]);
     }
 
@@ -256,7 +259,6 @@
 
     document.getElementById("g-sexo-f").addEventListener("input", recalcSexoLote);
     document.getElementById("g-sexo-m").addEventListener("input", recalcSexoLote);
-    document.getElementById("g-despachada").addEventListener("input", recalcMortalidad);
     document.getElementById("g-muertos").addEventListener("input", recalcMortalidad);
 
     document.getElementById("btn-add-muestra").addEventListener("click", () => {

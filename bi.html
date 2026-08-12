@@ -24,7 +24,7 @@
     </div>
   </div>
 
-  <div class="grid grid-3" id="kpis"></div>
+  <div class="grid grid-4" id="kpis"></div>
 
   <div class="section-title"><span class="eyebrow">RESULTADOS</span> Promedio, máximo, mínimo, desviación estándar y % cumplimiento</div>
   <div class="table-wrap">
@@ -102,13 +102,17 @@
     if (!viajes.length) {
       document.getElementById("kpis").innerHTML = `<div class="card empty-state" style="grid-column: 1 / -1;">Sin viajes para los filtros seleccionados.</div>`;
     } else {
+      const variacion = promSalida != null && promLlegada != null ? promLlegada - promSalida : null;
       document.getElementById("kpis").innerHTML = `
         <div class="card kpi-card">
-          <div class="kpi-label">Δ Temp. cloacal promedio (llegada − salida)</div>
-          <div class="kpi-value ${promSalida!=null && promLlegada!=null && Math.abs(promLlegada-promSalida)>0.6 ? "heat":"cool"}">
-            ${promSalida!=null && promLlegada!=null ? (promLlegada-promSalida>0?"+":"")+(promLlegada-promSalida).toFixed(2)+"°C" : "—"}
-          </div>
-          <div class="kpi-delta">Salida ${promSalida?.toFixed(1) ?? "—"}°C → Llegada ${promLlegada?.toFixed(1) ?? "—"}°C</div>
+          <div class="kpi-label">Temp. promedio — salida planta</div>
+          <div class="kpi-value cool">${promSalida != null ? promSalida.toFixed(1) + "°C" : "—"}</div>
+          <div class="kpi-delta">${conDatos.flatMap((v) => v.cargaPlanta.muestras).length} muestras registradas</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Temp. promedio — llegada granja</div>
+          <div class="kpi-value ${variacion != null && Math.abs(variacion) > 0.6 ? "heat" : "cool"}">${promLlegada != null ? promLlegada.toFixed(1) + "°C" : "—"}</div>
+          <div class="kpi-delta">Variación: ${variacion != null ? (variacion > 0 ? "+" : "") + variacion.toFixed(1) + "°C vs. salida" : "Sin datos aún"}</div>
         </div>
         <div class="card kpi-card">
           <div class="kpi-label">Cumplimiento de salida (±10 min vs. prog.)</div>

@@ -80,6 +80,12 @@
 <script>
   let muestraIdSeq = 1;
   let muestrasActuales = [];
+  let formBloqueado = false;
+
+  // Estados en los que la unidad todavía puede recibir/editar su registro
+  // de carga en planta. Una vez que salió de planta (o más adelante en el
+  // ciclo), el registro de carga queda bloqueado — ya no se debe editar.
+  const ESTADOS_EDITABLES_PLANTA = ["Programado", "En Carga"];
 
   function pintarMuestras() {
     document.getElementById("muestras-rows").innerHTML = muestrasActuales
@@ -87,11 +93,13 @@
         (m, idx) => `
       <div class="flex gap-8" style="margin-bottom:8px;" data-row="${m._id}">
         <input class="mono" style="width:70px;" value="Muestra ${idx + 1}" disabled />
-        <input class="mono temp-input" type="number" step="0.1" placeholder="40.1" value="${m.tempCloacal ?? ""}" style="width:110px;" />
-        <button class="btn btn-sm btn-ghost" type="button" data-remove="${m._id}">✕</button>
+        <input class="mono temp-input" type="number" step="0.1" placeholder="40.1" value="${m.tempCloacal ?? ""}" style="width:110px;" ${formBloqueado ? "disabled" : ""} />
+        <button class="btn btn-sm btn-ghost" type="button" data-remove="${m._id}" ${formBloqueado ? "disabled" : ""}>✕</button>
       </div>`
       )
       .join("");
+
+    if (formBloqueado) return;
 
     document.querySelectorAll(".temp-input").forEach((inp, idx) => {
       inp.addEventListener("input", () => {
@@ -107,6 +115,13 @@
         actualizarPreview();
       });
     });
+  }
+
+  function setFormBloqueado(bloqueado) {
+    formBloqueado = bloqueado;
+    ["input-temp-ambiente", "input-hora-carga", "btn-add-muestra", "btn-guardar-planta", "btn-marcar-salida",
+     "p-hora-nacimiento", "p-edad-lote", "p-linea-genetica", "btn-guardar-origen"]
+      .forEach((id) => { const el = document.getElementById(id); if (el) el.disabled = bloqueado; });
   }
 
   function actualizarPreview() {
@@ -129,7 +144,7 @@
     );
 
     const select = document.getElementById("select-viaje");
-    const todos = Store.getViajes().filter((v) => v.estado !== "Finalizado");
+    const todos = Store.getViajes();
     Util.fillSelectViajes(select, todos, { placeholder: "Selecciona la unidad / D.T. a cargar…" });
 
     const preId = Util.qs("id");
@@ -145,6 +160,8 @@
         actualizarPreview();
         return;
       }
+      const bloqueada = !ESTADOS_EDITABLES_PLANTA.includes(v.estado);
+
       detalle.innerHTML = `
         <div class="grid grid-2" style="font-size:12.5px; margin:10px 0;">
           <div><span class="faint">Destino:</span> ${v.destino1}</div>
@@ -153,7 +170,8 @@
           <div><span class="faint">Unidad / Placa:</span> ${v.unidad} · ${v.placa}</div>
           <div><span class="faint">Conductor:</span> ${v.conductor}</div>
           <div><span class="faint">Estado actual:</span> ${Util.badgeEstado(v.estado)}</div>
-        </div>`;
+        </div>
+        ${bloqueada ? `<div class="badge critico" style="margin-top:4px;">Unidad ya salió de planta — registro de carga bloqueado</div>` : ""}`;
 
       muestrasActuales = (v.cargaPlanta.muestras || []).map((m) => ({ _id: "m" + muestraIdSeq++, tempCloacal: m.tempCloacal }));
       if (!muestrasActuales.length) {
@@ -168,6 +186,7 @@
       document.getElementById("p-edad-lote").value = v.cargaPlanta.edadLoteSemanas ?? "";
       document.getElementById("p-linea-genetica").value = v.cargaPlanta.lineaGenetica || "";
 
+      setFormBloqueado(bloqueada);
       pintarMuestras();
       actualizarPreview();
     }

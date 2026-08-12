@@ -111,7 +111,7 @@
           <td class="mono">${v.unidad}</td>
           <td class="mono">${v.placa}</td>
           <td>${v.conductor}</td>
-          <td class="mono">${v.horaSalidaPlan}</td>
+          <td class="mono">${Util.fmtHora(v.horaSalidaPlan)}</td>
           <td>${Util.badgeEstado(v.estado)}</td>
           <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver →</a></td>
         </tr>`
