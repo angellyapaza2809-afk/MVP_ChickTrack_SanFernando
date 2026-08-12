@@ -638,17 +638,6 @@ function seedData() {
       granja = {
         // --- Dimensión geográfica y organizacional ---
         ubicacionOrganizacional: UBICACION_POR_DESTINO[v.destino1] || null,
-        galpones: [
-          {
-            galpon: v.galpon,
-            nh3: +(8 + Math.random() * 6).toFixed(1),
-            temp: +(31 + Math.random() * 2).toFixed(1),
-            humedad: +(55 + Math.random() * 10).toFixed(0),
-            ventilacion: +(0.4 + Math.random() * 0.3).toFixed(2),
-            co2: +(900 + Math.random() * 400).toFixed(0),
-            iluminacion: +(20 + Math.random() * 10).toFixed(0),
-          },
-        ],
         loteRecepcion: {
           plantel: v.destino1 || "",
           galpon: v.galpon || "",
