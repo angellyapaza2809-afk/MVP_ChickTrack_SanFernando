@@ -20,6 +20,15 @@ const RANGO = {
   alertaMax: 41.1,
 };
 
+// Peso de referencia del pollito BB al nacer (g) — referencial, para
+// estimar la tasa de crecimiento del lote al llegar a granja.
+const PESO_REFERENCIA_G = 40;
+
+function tasaCrecimientoPct(pesoPromedioG) {
+  if (pesoPromedioG == null || isNaN(pesoPromedioG)) return null;
+  return +(((pesoPromedioG - PESO_REFERENCIA_G) / PESO_REFERENCIA_G) * 100).toFixed(2);
+}
+
 function clasificarTemp(t) {
   if (t == null || isNaN(t)) return "sin-dato";
   if (t >= RANGO.optimoMin && t <= RANGO.optimoMax) return "optimo";
@@ -31,6 +40,26 @@ function promedio(arr) {
   const nums = arr.filter((n) => typeof n === "number" && !isNaN(n));
   if (!nums.length) return null;
   return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+function maximo(arr) {
+  const nums = arr.filter((n) => typeof n === "number" && !isNaN(n));
+  if (!nums.length) return null;
+  return Math.max(...nums);
+}
+
+function minimo(arr) {
+  const nums = arr.filter((n) => typeof n === "number" && !isNaN(n));
+  if (!nums.length) return null;
+  return Math.min(...nums);
+}
+
+function desviacionEstandar(arr) {
+  const nums = arr.filter((n) => typeof n === "number" && !isNaN(n));
+  if (nums.length < 2) return null;
+  const prom = promedio(nums);
+  const varianza = nums.reduce((a, b) => a + (b - prom) ** 2, 0) / (nums.length - 1);
+  return Math.sqrt(varianza);
 }
 
 function uuid() {
@@ -91,6 +120,16 @@ function validarControlLlegada({ f, m, total, cantidadDespachada, muertosTraslad
 // ---------------------------------------------------------------
 // SEED — datos de ejemplo (simulan la carga por transacción Z-SAP)
 // ---------------------------------------------------------------
+const LINEAS_GENETICAS = ["Ross 308", "Cobb 500", "Hubbard Flex"];
+
+// --- Dimensión geográfica y organizacional por destino (referencial) ---
+const UBICACION_POR_DESTINO = {
+  "Granja Chincha Norte": { zona: "Zona Sur", subzona: "Chincha", circuito: "Circuito 3", tipoPlantel: "Recría", supervisor: "Carla Núñez Vidal", coordinador: "Renzo Ortega Lam", franquicia: "San Fernando" },
+  "Granja Cañete Sur": { zona: "Zona Sur", subzona: "Cañete", circuito: "Circuito 2", tipoPlantel: "Engorde", supervisor: "Jorge Medina Ruiz", coordinador: "Renzo Ortega Lam", franquicia: "San Fernando" },
+  "Granja Ica Km 302": { zona: "Zona Sur", subzona: "Ica", circuito: "Circuito 4", tipoPlantel: "Engorde", supervisor: "Patricia Solano Vega", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
+  "Granja Huaral": { zona: "Zona Norte Chico", subzona: "Huaral", circuito: "Circuito 1", tipoPlantel: "Recría", supervisor: "Ana Belén Castro", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
+};
+
 function seedData() {
   const hoy = new Date();
   const fecha = (offsetDias = 0) => {
@@ -237,16 +276,25 @@ function seedData() {
       tempAmbienteUnidad: tempsCarga.length ? +(30.5 + (Math.random() - 0.5) * 1.5).toFixed(1) : null,
       muestras: tempsCarga.map((t, idx) => ({ n: idx + 1, tempCloacal: t })),
       horaRegistro: v.horaCargaFinPlan,
+      // --- Dimensión productiva de origen ---
+      horaNacimiento: v.horaSalidaPlan ? sumarMin(v.horaSalidaPlan, -60 * (20 + Math.round(Math.random() * 6))) : "",
+      edadLoteSemanas: +(38 + Math.random() * 20).toFixed(0),
+      lineaGenetica: LINEAS_GENETICAS[i % LINEAS_GENETICAS.length],
     };
 
     // --- Serie de temperatura ambiente en tránsito (sensores IoT) ---
     const transitoSerie = [];
+    const transitoEventos = [];
     if (["En Tránsito", "En Granja", "Finalizado"].includes(v.estado)) {
       const puntos = 8;
       let t0 = 30.5;
       for (let p = 0; p < puntos; p++) {
         t0 += (Math.random() - 0.5) * 0.6;
         transitoSerie.push({ min: p * 15, temp: +t0.toFixed(1) });
+      }
+      transitoEventos.push({ hora: v.horaSalidaReal || v.horaSalidaPlan, descripcion: "Salida de planta registrada" });
+      if (["En Granja", "Finalizado"].includes(v.estado) && v.horaLlegadaReal) {
+        transitoEventos.push({ hora: v.horaLlegadaReal, descripcion: "Llegada a destino registrada" });
       }
     }
 
@@ -271,6 +319,8 @@ function seedData() {
       const mortalidadPct = calcularMortalidad(muertosTraslado, cantidadDespachada);
 
       granja = {
+        // --- Dimensión geográfica y organizacional ---
+        ubicacionOrganizacional: UBICACION_POR_DESTINO[v.destino1] || null,
         galpones: [
           {
             galpon: v.galpon,
@@ -304,7 +354,7 @@ function seedData() {
       ...v,
       geocercas,
       cargaPlanta,
-      transito: { serie: transitoSerie },
+      transito: { serie: transitoSerie, eventos: transitoEventos },
       granja,
     };
   });
@@ -324,10 +374,15 @@ function sumarMin(hhmm, min) {
 // ---------------------------------------------------------------
 const Store = {
   RANGO,
+  PESO_REFERENCIA_G,
   clasificarTemp,
   promedio,
+  maximo,
+  minimo,
+  desviacionEstandar,
   calcularMortalidad,
   validarControlLlegada,
+  tasaCrecimientoPct,
 
   init() {
     if (!localStorage.getItem(DB_KEY)) {
@@ -363,8 +418,8 @@ const Store = {
       { nombre: "Ruta - Punto medio", hora: "", estado: "Pendiente" },
       { nombre: (viaje.destino1 || "Destino") + " - Llegada", hora: "", estado: "Pendiente" },
     ];
-    viaje.cargaPlanta = viaje.cargaPlanta || { tempAmbienteUnidad: null, muestras: [], horaRegistro: "" };
-    viaje.transito = viaje.transito || { serie: [] };
+    viaje.cargaPlanta = viaje.cargaPlanta || { tempAmbienteUnidad: null, muestras: [], horaRegistro: "", horaNacimiento: "", edadLoteSemanas: null, lineaGenetica: "" };
+    viaje.transito = viaje.transito || { serie: [], eventos: [] };
     viaje.granja = viaje.granja || null;
     viaje.estado = viaje.estado || "Programado";
     db.viajes.unshift(viaje);

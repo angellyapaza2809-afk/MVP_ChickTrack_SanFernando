@@ -53,6 +53,25 @@
       <div id="ribbon-preview" class="empty-state">Selecciona un viaje para ver sus muestras.</div>
     </div>
   </div>
+
+  <div class="section-title"><span class="eyebrow">ORIGEN</span> Dimensión productiva de origen</div>
+  <div class="card">
+    <div class="grid grid-2">
+      <div class="field"><label>Planta de incubación</label><input class="mono" id="p-planta" readonly /></div>
+      <div class="field"><label>Lote</label><input class="mono" id="p-lote" readonly /></div>
+      <div class="field"><label>Horario de nacimiento</label><input class="mono" type="time" id="p-hora-nacimiento" /></div>
+      <div class="field"><label>Edad del lote (semanas, reproductoras)</label><input class="mono" type="number" step="1" min="0" id="p-edad-lote" placeholder="42" /></div>
+      <div class="field"><label>Línea genética</label>
+        <select id="p-linea-genetica">
+          <option value="">Selecciona…</option>
+          <option>Ross 308</option>
+          <option>Cobb 500</option>
+          <option>Hubbard Flex</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn" id="btn-guardar-origen" type="button">Guardar dimensión productiva de origen</button>
+  </div>
 </template>
 
 <script src="js/store.js"></script>
@@ -142,6 +161,13 @@
       }
       document.getElementById("input-temp-ambiente").value = v.cargaPlanta.tempAmbienteUnidad ?? "";
       document.getElementById("input-hora-carga").value = v.cargaPlanta.horaRegistro || v.horaCargaFinPlan || "";
+
+      document.getElementById("p-planta").value = v.planta || "";
+      document.getElementById("p-lote").value = v.edadLotes || "";
+      document.getElementById("p-hora-nacimiento").value = v.cargaPlanta.horaNacimiento || "";
+      document.getElementById("p-edad-lote").value = v.cargaPlanta.edadLoteSemanas ?? "";
+      document.getElementById("p-linea-genetica").value = v.cargaPlanta.lineaGenetica || "";
+
       pintarMuestras();
       actualizarPreview();
     }
@@ -164,6 +190,9 @@
         tempAmbienteUnidad: parseFloat(document.getElementById("input-temp-ambiente").value) || null,
         muestras,
         horaRegistro: document.getElementById("input-hora-carga").value,
+        horaNacimiento: document.getElementById("p-hora-nacimiento").value,
+        edadLoteSemanas: document.getElementById("p-edad-lote").value ? parseInt(document.getElementById("p-edad-lote").value, 10) : null,
+        lineaGenetica: document.getElementById("p-linea-genetica").value,
       };
       return Store.updateViaje(v.id, { cargaPlanta });
     }
@@ -171,6 +200,11 @@
     document.getElementById("btn-guardar-planta").addEventListener("click", () => {
       const r = guardar();
       if (r) document.getElementById("msg-guardado").textContent = "✓ Registro de carga guardado — " + new Date().toLocaleTimeString("es-PE");
+    });
+
+    document.getElementById("btn-guardar-origen").addEventListener("click", () => {
+      const r = guardar();
+      if (r) document.getElementById("msg-guardado").textContent = "✓ Dimensión productiva de origen guardada — " + new Date().toLocaleTimeString("es-PE");
     });
 
     document.getElementById("btn-marcar-salida").addEventListener("click", () => {
