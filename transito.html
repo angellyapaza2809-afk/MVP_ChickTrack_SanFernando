@@ -31,6 +31,34 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
   let chartRef = null;
+  let dlLecturas = [];
+  let dlLecturaSeq = 1;
+
+  function pintarLecturas() {
+    document.getElementById("dl-lecturas-rows").innerHTML = dlLecturas
+      .map(
+        (l) => `
+      <div class="flex gap-8" style="margin-bottom:8px;" data-row="${l._id}">
+        <input class="mono min-input" type="number" step="1" placeholder="min" value="${l.min ?? ""}" style="width:80px;" />
+        <input class="mono temp-input" type="number" step="0.1" placeholder="Temp °C" value="${l.temp ?? ""}" style="width:110px;" />
+        <button class="btn btn-sm btn-ghost" type="button" data-remove="${l._id}">✕</button>
+      </div>`
+      )
+      .join("");
+
+    document.querySelectorAll("#dl-lecturas-rows .min-input").forEach((inp, idx) => {
+      inp.addEventListener("input", () => { dlLecturas[idx].min = inp.value !== "" ? parseFloat(inp.value) : null; });
+    });
+    document.querySelectorAll("#dl-lecturas-rows .temp-input").forEach((inp, idx) => {
+      inp.addEventListener("input", () => { dlLecturas[idx].temp = inp.value !== "" ? parseFloat(inp.value) : null; });
+    });
+    document.querySelectorAll("#dl-lecturas-rows [data-remove]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dlLecturas = dlLecturas.filter((l) => l._id !== btn.getAttribute("data-remove"));
+        pintarLecturas();
+      });
+    });
+  }
 
   function pintar(id) {
     const cont = document.getElementById("contenido");
@@ -133,7 +161,38 @@
         </div>
       </div>
 
-      <div class="section-title"><span class="eyebrow">SENSOR</span> Temperatura ambiente de la unidad (temperada)</div>
+      <div class="section-title"><span class="eyebrow">VALIDACIÓN</span> Contraste con datalogger independiente</div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head"><h3>Registro del datalogger</h3><span class="hint">Complementa al sensor del proveedor</span></div>
+          <div class="grid grid-2">
+            <div class="field"><label>Fuente de datos</label>
+              <select id="dl-fuente">
+                <option value="">Sin datos aún</option>
+                <option value="tiempo_real">Tiempo real (IoT)</option>
+                <option value="manual">Registro manual (descarga post-viaje)</option>
+              </select>
+            </div>
+            <div class="field"><label>ID del datalogger</label><input class="mono" id="dl-dispositivo" placeholder="DL-2201" /></div>
+            <div class="field"><label>Registrado por</label><input id="dl-registrado-por" placeholder="Nombre / área (si es manual)" /></div>
+            <div class="field"><label>Hora de registro / descarga</label><input class="mono" type="time" id="dl-hora" /></div>
+          </div>
+          <div class="flex-between" style="margin:6px 0 10px;">
+            <h3 style="font-size:13px;">Lecturas del datalogger (minuto, temp. °C)</h3>
+            <button class="btn btn-sm" id="btn-add-lectura" type="button">+ Agregar lectura</button>
+          </div>
+          <div id="dl-lecturas-rows"></div>
+          <button class="btn btn-primary" style="margin-top:12px;" id="btn-guardar-datalogger" type="button">Guardar datos del datalogger</button>
+          <p class="faint" id="msg-datalogger" style="margin-top:8px; font-size:12px;"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Resultado del contraste</h3></div>
+          <div id="dl-contraste"></div>
+        </div>
+      </div>
+
+      <div class="section-title"><span class="eyebrow">SENSOR</span> Temperatura ambiente: sensor del proveedor vs. datalogger</div>
       <div class="card">
         ${v.transito.serie.length
           ? `<canvas id="chart-temp" height="80"></canvas>`
@@ -160,29 +219,43 @@
       })
       .join("");
 
-    // Chart temp ambiente (envuelto en try/catch: si Chart.js no cargó —p.ej. sin
-    // conexión al CDN en planta/campo— el resto de la página sigue funcionando)
-    if (v.transito.serie.length) {
+    // Chart temp ambiente: sensor del proveedor vs. datalogger (envuelto en
+    // try/catch: si Chart.js no cargó —p.ej. sin conexión al CDN en planta/
+    // campo— el resto de la página sigue funcionando)
+    function dibujarChart() {
+      if (!v.transito.serie.length) return;
       try {
         const ctx = document.getElementById("chart-temp");
         if (chartRef) chartRef.destroy();
+        const datalog = v.transito.datalogger;
+        const datasets = [
+          {
+            label: "Sensor proveedor (°C)",
+            data: v.transito.serie.map((s) => s.temp),
+            borderColor: "#2f93c4",
+            backgroundColor: "#2f93c422",
+            tension: 0.35,
+            fill: true,
+            pointRadius: 3,
+            pointBackgroundColor: "#2f93c4",
+          },
+        ];
+        if (datalog?.serie?.length) {
+          datasets.push({
+            label: "Datalogger (°C)",
+            data: datalog.serie.map((s) => s.temp),
+            borderColor: "#e2231a",
+            backgroundColor: "#e2231a00",
+            borderDash: [6, 4],
+            tension: 0.35,
+            fill: false,
+            pointRadius: 3,
+            pointBackgroundColor: "#e2231a",
+          });
+        }
         chartRef = new Chart(ctx, {
           type: "line",
-          data: {
-            labels: v.transito.serie.map((s) => `min ${s.min}`),
-            datasets: [
-              {
-                label: "Temp. ambiente unidad (°C)",
-                data: v.transito.serie.map((s) => s.temp),
-                borderColor: "#2f93c4",
-                backgroundColor: "#2f93c422",
-                tension: 0.35,
-                fill: true,
-                pointRadius: 3,
-                pointBackgroundColor: "#2f93c4",
-              },
-            ],
-          },
+          data: { labels: v.transito.serie.map((s) => `min ${s.min}`), datasets },
           options: {
             responsive: true,
             plugins: { legend: { labels: { color: "#5c7396", font: { family: "Nunito Sans" } } } },
@@ -196,6 +269,7 @@
         console.error("No se pudo dibujar el gráfico de temperatura (Chart.js):", err);
       }
     }
+    dibujarChart();
 
     document.getElementById("btn-llegada")?.addEventListener("click", () => {
       const hora = new Date().toTimeString().slice(0, 5);
@@ -225,6 +299,73 @@
       pintarEventos(eventos);
       document.getElementById("ev-desc").value = "";
       document.getElementById("ev-hora").value = "";
+    });
+
+    // Contraste con datalogger
+    const dl0 = v.transito.datalogger || { fuente: null, dispositivoId: "", registradoPor: "", horaRegistro: "", serie: [] };
+    document.getElementById("dl-fuente").value = dl0.fuente || "";
+    document.getElementById("dl-dispositivo").value = dl0.dispositivoId || "";
+    document.getElementById("dl-registrado-por").value = dl0.registradoPor || "";
+    document.getElementById("dl-hora").value = dl0.horaRegistro || "";
+
+    dlLecturas = (dl0.serie || []).map((l) => ({ _id: "dl" + dlLecturaSeq++, min: l.min, temp: l.temp }));
+    if (!dlLecturas.length) {
+      dlLecturas = [1, 2, 3].map(() => ({ _id: "dl" + dlLecturaSeq++, min: null, temp: null }));
+    }
+    pintarLecturas();
+
+    function pintarContraste() {
+      const cont = document.getElementById("dl-contraste");
+      const dl = v.transito.datalogger || {};
+      const resultado = Store.contrastarDatalogger(v.transito.serie, dl.serie || []);
+      if (!resultado) {
+        cont.innerHTML = `<div class="empty-state">Aún no hay datos del datalogger para contrastar.</div>`;
+        return;
+      }
+      cont.innerHTML = `
+        <div class="grid grid-2" style="gap:10px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Prom. sensor proveedor</div>
+            <div class="kpi-value">${resultado.promSensor.toFixed(1)}°C</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Prom. datalogger</div>
+            <div class="kpi-value">${resultado.promDatalogger.toFixed(1)}°C</div>
+          </div>
+        </div>
+        <hr class="divider" />
+        <div class="kpi-label">Δ contraste (datalogger − sensor)</div>
+        <div class="kpi-value ${resultado.consistente ? "cool" : "heat"}" style="font-size:22px; margin:4px 0 8px;">
+          ${resultado.delta > 0 ? "+" : ""}${resultado.delta.toFixed(2)}°C
+        </div>
+        <span class="badge ${resultado.consistente ? "optimo" : "critico"}">${resultado.consistente ? "Sensores consistentes" : "Discrepancia detectada"}</span>
+        <p class="faint" style="font-size:11.5px; margin-top:8px;">Tolerancia admitida: ±${Store.TOLERANCIA_DATALOGGER_C}°C · Fuente: ${dl.fuente === "manual" ? "registro manual" : dl.fuente === "tiempo_real" ? "tiempo real (IoT)" : "—"}</p>
+      `;
+    }
+    pintarContraste();
+
+    document.getElementById("btn-add-lectura").addEventListener("click", () => {
+      dlLecturas.push({ _id: "dl" + dlLecturaSeq++, min: null, temp: null });
+      pintarLecturas();
+    });
+
+    document.getElementById("btn-guardar-datalogger").addEventListener("click", () => {
+      const serie = dlLecturas
+        .filter((l) => l.min != null && l.temp != null)
+        .sort((a, b) => a.min - b.min)
+        .map((l) => ({ min: l.min, temp: l.temp }));
+      const nuevoDatalogger = {
+        fuente: document.getElementById("dl-fuente").value || null,
+        dispositivoId: document.getElementById("dl-dispositivo").value,
+        registradoPor: document.getElementById("dl-registrado-por").value,
+        horaRegistro: document.getElementById("dl-hora").value,
+        serie,
+      };
+      Store.updateViaje(v.id, { transito: { ...v.transito, datalogger: nuevoDatalogger } });
+      v.transito.datalogger = nuevoDatalogger;
+      document.getElementById("msg-datalogger").textContent = "✓ Datos del datalogger guardados — " + new Date().toLocaleTimeString("es-PE");
+      pintarContraste();
+      dibujarChart();
     });
   }
 

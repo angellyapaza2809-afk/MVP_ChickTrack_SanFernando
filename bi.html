@@ -128,17 +128,25 @@
     const tempsLlegada = conGranja.flatMap((v) => v.granja.muestrasLlegada.map((m) => m.tempCloacal));
     const mortalidades = conGranja.map((v) => v.granja.mortalidad).filter((m) => m != null);
     const tasasCrecimiento = conGranja.map((v) => Store.tasaCrecimientoPct(v.granja.pesoPromedioG)).filter((t) => t != null);
+    const contrastesDatalogger = viajes
+      .map((v) => Store.contrastarDatalogger(v.transito.serie, v.transito.datalogger?.serie || []))
+      .filter((c) => c != null);
+    const deltasDatalogger = contrastesDatalogger.map((c) => c.delta);
 
     const pctOptimoSalida = tempsSalida.length ? (tempsSalida.filter((t) => Store.clasificarTemp(t) === "optimo").length / tempsSalida.length) * 100 : null;
     const pctOptimoLlegada = tempsLlegada.length ? (tempsLlegada.filter((t) => Store.clasificarTemp(t) === "optimo").length / tempsLlegada.length) * 100 : null;
     const pctMortalidadOk = mortalidades.length ? (mortalidades.filter((m) => m <= 0.4).length / mortalidades.length) * 100 : null;
     const pctCrecimientoOk = tasasCrecimiento.length ? (tasasCrecimiento.filter((t) => t >= 0).length / tasasCrecimiento.length) * 100 : null;
+    const pctDataloggerOk = contrastesDatalogger.length
+      ? (contrastesDatalogger.filter((c) => c.consistente).length / contrastesDatalogger.length) * 100
+      : null;
 
     const filasResultados = [
       { nombre: "Temp. cloacal — salida planta (°C)", datos: tempsSalida, pct: pctOptimoSalida, hint: "% dentro de rango óptimo" },
       { nombre: "Temp. cloacal — llegada granja (°C)", datos: tempsLlegada, pct: pctOptimoLlegada, hint: "% dentro de rango óptimo" },
       { nombre: "Mortalidad (%)", datos: mortalidades, pct: pctMortalidadOk, hint: "% de viajes ≤ 0.4% mortalidad" },
       { nombre: "Tasa de crecimiento vs. referencia (%)", datos: tasasCrecimiento, pct: pctCrecimientoOk, hint: "% de viajes ≥ peso de referencia" },
+      { nombre: "Δ contraste datalogger vs. sensor proveedor (°C)", datos: deltasDatalogger, pct: pctDataloggerOk, hint: `% de viajes con sensores consistentes (±${Store.TOLERANCIA_DATALOGGER_C}°C)` },
     ];
 
     document.getElementById("tabla-resultados").innerHTML =
