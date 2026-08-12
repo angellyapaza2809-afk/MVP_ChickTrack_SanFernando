@@ -184,6 +184,20 @@ const CHECKLIST_PESO_TOTAL = CHECKLIST_ITEMS.reduce((a, it) => a + it.peso, 0); 
 // Umbrales de %cumplimiento — referenciales, ajustar con el área técnica.
 const CHECKLIST_UMBRAL = { cumpleMin: 90, observacionesMin: 70 };
 
+/**
+ * Un mismo viaje puede descargar en hasta 3 destinos (destino1/2/3 de la
+ * programación SAP), cada uno con su propio galpón. Devuelve la lista de
+ * {destino, galpon} realmente usados por el viaje (ignora los vacíos).
+ */
+function destinosGalpones(viaje) {
+  const pares = [
+    { destino: viaje.destino1, galpon: viaje.galpon },
+    { destino: viaje.destino2, galpon: viaje.galpon2 },
+    { destino: viaje.destino3, galpon: viaje.galpon3 },
+  ];
+  return pares.filter((p) => p.destino);
+}
+
 function checklistKey(plantel, galpon) {
   return `${(plantel || "").trim().toLowerCase()}|${(galpon || "").trim().toLowerCase()}`;
 }
@@ -514,6 +528,34 @@ function seedData() {
       horaLlegadaReal: "08:41",
       diasOffset: 0,
     },
+    // --- Viaje multi-galpón: la misma unidad descarga en 3 galpones
+    // distintos (destino1/2/3 + galpon/galpon2/galpon3) en una sola ruta. ---
+    {
+      dtSap: "0080012355",
+      ruta: "R-014",
+      planta: "Planta Incubación Lurín",
+      destino1: "Granja Chincha Norte",
+      destino2: "Granja Cañete Sur",
+      destino3: "Granja Huaral",
+      cantidad: 26000,
+      edadLotes: "Lote 233-C",
+      galpon: "G-08",
+      galpon2: "G-03",
+      galpon3: "G-99",
+      puntoCarga: "Andén 3",
+      unidad: "T-118",
+      placa: "F4X-812",
+      conductor: "Julio Ramírez Soto",
+      horaSalidaPlan: "05:10",
+      horaCargaFinPlan: "05:30",
+      esperaMaxMin: 30,
+      horaRetornoPlan: "10:00",
+      plantaRetorno: "Planta Incubación Lurín",
+      estado: "Finalizado",
+      horaSalidaReal: "05:12",
+      horaLlegadaReal: "08:20",
+      diasOffset: -1,
+    },
   ];
 
   const viajes = base.map((v, i) => {
@@ -689,7 +731,47 @@ function seedChecklists() {
     selecciones: construirSelecciones([3, 2, 3, 2, 3, 2, 2, 3, 1, 2]),
   };
 
-  [cl1, cl2, cl3].forEach((cl) => {
+  const cl4 = {
+    plantel: "Granja Ica Km 302",
+    galpon: "G-11",
+    fecha: fechaISO(-1),
+    auditor: "Milagros Chávez Ríos",
+    supervisor: UBICACION_POR_DESTINO["Granja Ica Km 302"].supervisor,
+    firma: "Milagros Chávez Ríos",
+    selecciones: construirSelecciones(
+      [3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+      { 3: "Falta 1 foco en el sector norte del galpón; se repone antes de la recepción." }
+    ),
+  };
+
+  const cl5 = {
+    plantel: "Granja Cañete Sur",
+    galpon: "G-06",
+    fecha: fechaISO(-2),
+    auditor: "Iván Salcedo Bravo",
+    supervisor: UBICACION_POR_DESTINO["Granja Cañete Sur"].supervisor,
+    firma: "Iván Salcedo Bravo",
+    selecciones: construirSelecciones(
+      [2, 3, 2, 2, 3, 2, 2, 3, 1, 2, 3, 3, 3, 0, 2, 3, 2],
+      { 13: "Solo 4 de 8 filas de papel Kraft disponibles; se refuerza antes de la recepción." }
+    ),
+  };
+
+  const cl6 = {
+    plantel: "Granja Chincha Norte",
+    galpon: "G-09",
+    fecha: fechaISO(-2),
+    auditor: "Fiorella Ramos Ibáñez",
+    supervisor: UBICACION_POR_DESTINO["Granja Chincha Norte"].supervisor,
+    firma: "Fiorella Ramos Ibáñez",
+    selecciones: construirSelecciones([3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2]),
+  };
+
+  // Nota: "Granja Huaral · G-99" (3er galpón del viaje multi-galpón
+  // 0080012355) queda deliberadamente sin checklist, para mostrar el
+  // estado "Sin checklist" junto a los otros dos galpones del mismo viaje.
+
+  [cl1, cl2, cl3, cl4, cl5, cl6].forEach((cl) => {
     checklists[checklistKey(cl.plantel, cl.galpon)] = cl;
   });
 
@@ -726,6 +808,7 @@ const Store = {
   contrastarDatalogger,
   calcularChecklist,
   clasificarChecklist,
+  destinosGalpones,
 
   init() {
     if (!localStorage.getItem(DB_KEY)) {
