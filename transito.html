@@ -44,6 +44,19 @@
     const salidaDeltaMin = Util.minutosEntre(v.horaSalidaPlan, v.horaSalidaReal);
     const llegadaDeltaMin = v.horaLlegadaReal ? Util.minutosEntre(v.horaCargaFinPlan, v.horaLlegadaReal) : null;
 
+    // --- Dimensión operativa y logística ---
+    const promC = Store.promedio(v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+    const promAmb = Store.promedio(v.transito.serie.map((s) => s.temp));
+    const promL = v.granja ? Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal)) : null;
+    const variacion = promL != null && promC != null ? promL - promC : null;
+
+    const viajeMin = v.horaSalidaReal && v.horaLlegadaReal ? Util.minutosEntre(v.horaSalidaReal, v.horaLlegadaReal) : null;
+    const duracionTexto = viajeMin != null
+      ? `${Math.floor(viajeMin / 60)}h ${viajeMin % 60}min`
+      : v.horaSalidaReal
+        ? `En curso desde ${v.horaSalidaReal}`
+        : "Aún no inicia";
+
     cont.innerHTML = `
       <div class="two-col">
         <div class="card">
@@ -82,6 +95,44 @@
         </div>
       </div>
 
+      <div class="section-title"><span class="eyebrow">LOGÍSTICA</span> Dimensión operativa y logística</div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-head"><h3>Temperaturas y variación térmica</h3></div>
+          <div class="grid grid-4" style="gap:10px;">
+            <div class="kpi-card">
+              <div class="kpi-label">Salida planta</div>
+              <div class="kpi-value">${promC != null ? promC.toFixed(1) + "°C" : "—"}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Tránsito (amb.)</div>
+              <div class="kpi-value">${promAmb != null ? promAmb.toFixed(1) + "°C" : "—"}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Llegada granja</div>
+              <div class="kpi-value">${promL != null ? promL.toFixed(1) + "°C" : "—"}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Variación térmica</div>
+              <div class="kpi-value ${variacion != null && Math.abs(variacion) > 0.6 ? "heat" : "cool"}">${variacion != null ? (variacion > 0 ? "+" : "") + variacion.toFixed(1) + "°C" : "—"}</div>
+            </div>
+          </div>
+          <hr class="divider" />
+          <div class="kpi-label">Tiempos de transporte</div>
+          <div class="kpi-value" style="font-size:19px; margin-top:4px;">${duracionTexto}</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Eventos del viaje</h3></div>
+          <div id="eventos-lista" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;"></div>
+          <div class="flex gap-8" style="align-items:flex-end;">
+            <div class="field" style="margin-bottom:0; width:110px;"><label>Hora</label><input class="mono" type="time" id="ev-hora" /></div>
+            <div class="field" style="margin-bottom:0; flex:1;"><label>Descripción</label><input id="ev-desc" placeholder="Parada no programada, alerta térmica…" /></div>
+            <button class="btn btn-sm" id="btn-add-evento" type="button" style="height:38px;">+ Registrar</button>
+          </div>
+        </div>
+      </div>
+
       <div class="section-title"><span class="eyebrow">SENSOR</span> Temperatura ambiente de la unidad (temperada)</div>
       <div class="card">
         ${v.transito.serie.length
@@ -109,36 +160,41 @@
       })
       .join("");
 
-    // Chart temp ambiente
+    // Chart temp ambiente (envuelto en try/catch: si Chart.js no cargó —p.ej. sin
+    // conexión al CDN en planta/campo— el resto de la página sigue funcionando)
     if (v.transito.serie.length) {
-      const ctx = document.getElementById("chart-temp");
-      if (chartRef) chartRef.destroy();
-      chartRef = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: v.transito.serie.map((s) => `min ${s.min}`),
-          datasets: [
-            {
-              label: "Temp. ambiente unidad (°C)",
-              data: v.transito.serie.map((s) => s.temp),
-              borderColor: "#2f93c4",
-              backgroundColor: "#2f93c422",
-              tension: 0.35,
-              fill: true,
-              pointRadius: 3,
-              pointBackgroundColor: "#2f93c4",
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { labels: { color: "#5c7396", font: { family: "Nunito Sans" } } } },
-          scales: {
-            x: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" } },
-            y: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" }, suggestedMin: 27, suggestedMax: 34 },
+      try {
+        const ctx = document.getElementById("chart-temp");
+        if (chartRef) chartRef.destroy();
+        chartRef = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: v.transito.serie.map((s) => `min ${s.min}`),
+            datasets: [
+              {
+                label: "Temp. ambiente unidad (°C)",
+                data: v.transito.serie.map((s) => s.temp),
+                borderColor: "#2f93c4",
+                backgroundColor: "#2f93c422",
+                tension: 0.35,
+                fill: true,
+                pointRadius: 3,
+                pointBackgroundColor: "#2f93c4",
+              },
+            ],
           },
-        },
-      });
+          options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: "#5c7396", font: { family: "Nunito Sans" } } } },
+            scales: {
+              x: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" } },
+              y: { ticks: { color: "#93a8c4" }, grid: { color: "#e7eff8" }, suggestedMin: 27, suggestedMax: 34 },
+            },
+          },
+        });
+      } catch (err) {
+        console.error("No se pudo dibujar el gráfico de temperatura (Chart.js):", err);
+      }
     }
 
     document.getElementById("btn-llegada")?.addEventListener("click", () => {
@@ -146,6 +202,29 @@
       const nuevasGeo = v.geocercas.map((g, i) => (i === v.geocercas.length - 1 ? { ...g, hora, estado: "Cruzada" } : g));
       Store.updateViaje(v.id, { estado: "En Granja", horaLlegadaReal: hora, geocercas: nuevasGeo });
       window.location.href = "granja.html?id=" + v.id;
+    });
+
+    // Eventos del viaje
+    const eventosLista = document.getElementById("eventos-lista");
+    function pintarEventos(eventos) {
+      eventosLista.innerHTML = eventos.length
+        ? eventos
+            .map((e) => `<div style="font-size:12.5px;"><span class="mono faint">${e.hora || "—"}</span> · ${e.descripcion}</div>`)
+            .join("")
+        : `<div class="faint" style="font-size:12.5px;">Sin eventos registrados.</div>`;
+    }
+    pintarEventos(v.transito.eventos || []);
+
+    document.getElementById("btn-add-evento").addEventListener("click", () => {
+      const desc = document.getElementById("ev-desc").value.trim();
+      if (!desc) return;
+      const hora = document.getElementById("ev-hora").value || new Date().toTimeString().slice(0, 5);
+      const eventos = [...(v.transito.eventos || []), { hora, descripcion: desc }];
+      Store.updateViaje(v.id, { transito: { ...v.transito, eventos } });
+      v.transito.eventos = eventos;
+      pintarEventos(eventos);
+      document.getElementById("ev-desc").value = "";
+      document.getElementById("ev-hora").value = "";
     });
   }
 

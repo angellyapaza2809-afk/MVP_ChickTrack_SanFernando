@@ -72,6 +72,27 @@
     </div>
   </div>
 
+  <div class="section-title"><span class="eyebrow">UBICACIÓN</span> Dimensión geográfica y organizacional</div>
+  <div class="card">
+    <div class="grid grid-4">
+      <div class="field"><label>Zona</label><input class="mono" id="g-zona" placeholder="Zona Sur" /></div>
+      <div class="field"><label>Subzona</label><input class="mono" id="g-subzona" placeholder="Chincha" /></div>
+      <div class="field"><label>Circuito</label><input class="mono" id="g-circuito" placeholder="Circuito 3" /></div>
+      <div class="field"><label>Tipo de plantel</label>
+        <select id="g-tipo-plantel">
+          <option value="">Selecciona…</option>
+          <option>Recría</option>
+          <option>Engorde</option>
+          <option>Reproductoras</option>
+        </select>
+      </div>
+      <div class="field"><label>Supervisor</label><input id="g-supervisor" placeholder="Nombres completos" /></div>
+      <div class="field"><label>Coordinador</label><input id="g-coordinador" placeholder="Nombres completos" /></div>
+      <div class="field"><label>Franquicia</label><input class="mono" id="g-franquicia" placeholder="San Fernando" /></div>
+    </div>
+    <button class="btn" id="btn-guardar-ubicacion" type="button">Guardar dimensión geográfica y organizacional</button>
+  </div>
+
   <div class="section-title"><span class="eyebrow">CICLO</span> Cinta térmica completa (planta → tránsito → granja)</div>
   <div class="card" id="ribbon-cont"></div>
 </template>
@@ -188,6 +209,15 @@
       document.getElementById("g-co2").value = galpon?.co2 ?? "";
       document.getElementById("g-lux").value = galpon?.iluminacion ?? "";
 
+      const ubic = g?.ubicacionOrganizacional;
+      document.getElementById("g-zona").value = ubic?.zona || "";
+      document.getElementById("g-subzona").value = ubic?.subzona || "";
+      document.getElementById("g-circuito").value = ubic?.circuito || "";
+      document.getElementById("g-tipo-plantel").value = ubic?.tipoPlantel || "";
+      document.getElementById("g-supervisor").value = ubic?.supervisor || "";
+      document.getElementById("g-coordinador").value = ubic?.coordinador || "";
+      document.getElementById("g-franquicia").value = ubic?.franquicia || "";
+
       const lote = g?.loteRecepcion;
       document.getElementById("g-plantel").value = lote?.plantel ?? v.destino1 ?? "";
       document.getElementById("g-lote-galpon").value = lote?.galpon ?? v.galpon ?? "";
@@ -251,6 +281,22 @@
       return Store.updateViaje(v.id, { granja });
     }
 
+    function guardarUbicacion() {
+      const v = Store.getViaje(select.value);
+      if (!v) { alert("Selecciona una unidad."); return null; }
+      const granja = v.granja || {};
+      granja.ubicacionOrganizacional = {
+        zona: document.getElementById("g-zona").value,
+        subzona: document.getElementById("g-subzona").value,
+        circuito: document.getElementById("g-circuito").value,
+        tipoPlantel: document.getElementById("g-tipo-plantel").value,
+        supervisor: document.getElementById("g-supervisor").value,
+        coordinador: document.getElementById("g-coordinador").value,
+        franquicia: document.getElementById("g-franquicia").value,
+      };
+      return Store.updateViaje(v.id, { granja });
+    }
+
     function guardarLlegada() {
       const v = Store.getViaje(select.value);
       if (!v) { alert("Selecciona una unidad."); return null; }
@@ -296,6 +342,11 @@
       document.getElementById("msg").textContent = "✓ Condiciones del galpón guardadas.";
     });
 
+    document.getElementById("btn-guardar-ubicacion").addEventListener("click", () => {
+      guardarUbicacion();
+      document.getElementById("msg").textContent = "✓ Dimensión geográfica y organizacional guardada.";
+    });
+
     document.getElementById("btn-guardar-llegada").addEventListener("click", () => {
       const v = guardarLlegada();
       if (v) { document.getElementById("msg").textContent = "✓ Control de llegada guardado."; dibujarRibbon(Store.getViaje(v.id)); }
@@ -303,6 +354,7 @@
 
     document.getElementById("btn-finalizar").addEventListener("click", () => {
       guardarGalpon();
+      guardarUbicacion();
       const v = guardarLlegada();
       if (!v) return;
       Store.updateViaje(v.id, { estado: "Finalizado" });

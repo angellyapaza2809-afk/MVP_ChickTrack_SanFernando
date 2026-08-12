@@ -14,7 +14,27 @@
 </script>
 
 <template id="tpl-content">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head"><h3>Segmentación</h3><span class="hint">Filtra todo el dashboard</span></div>
+    <div class="grid grid-4" style="gap:10px;">
+      <div class="field" style="margin-bottom:0;"><label>Fecha</label><select id="f-fecha"></select></div>
+      <div class="field" style="margin-bottom:0;"><label>Planta</label><select id="f-planta"></select></div>
+      <div class="field" style="margin-bottom:0;"><label>Granja</label><select id="f-granja"></select></div>
+      <div class="field" style="margin-bottom:0;"><label>Viaje (D.T.)</label><select id="f-viaje"></select></div>
+    </div>
+  </div>
+
   <div class="grid grid-3" id="kpis"></div>
+
+  <div class="section-title"><span class="eyebrow">RESULTADOS</span> Promedio, máximo, mínimo, desviación estándar y % cumplimiento</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Indicador</th><th class="num">Promedio</th><th class="num">Máximo</th><th class="num">Mínimo</th><th class="num">Desv. estándar</th><th class="num">% Cumplimiento</th></tr>
+      </thead>
+      <tbody id="tabla-resultados"></tbody>
+    </table>
+  </div>
 
   <div class="section-title"><span class="eyebrow">01</span> Temperatura cloacal: salida vs. llegada por viaje</div>
   <div class="card"><canvas id="chart-temp-comp" height="90"></canvas></div>
@@ -32,6 +52,9 @@
 
   <div class="section-title"><span class="eyebrow">04</span> Uniformidad de peso por viaje</div>
   <div class="card"><canvas id="chart-uniformidad" height="90"></canvas></div>
+
+  <div class="section-title"><span class="eyebrow">05</span> Mortalidad vs. tasa de crecimiento (correlación)</div>
+  <div class="card"><canvas id="chart-crecimiento" height="120"></canvas></div>
 </template>
 
 <script src="js/store.js"></script>
@@ -46,12 +69,21 @@
     },
   };
 
-  window.initPage = function () {
-    document.getElementById("page-content").appendChild(
-      document.getElementById("tpl-content").content.cloneNode(true)
-    );
+  let charts = {};
+  function destroyCharts() {
+    Object.values(charts).forEach((c) => c && c.destroy());
+    charts = {};
+  }
 
-    const viajes = Store.getViajes();
+  function fillSelectDistinct(selectEl, values, placeholder) {
+    const distintos = [...new Set(values.filter(Boolean))].sort();
+    selectEl.innerHTML =
+      `<option value="">${placeholder}</option>` +
+      distintos.map((v) => `<option value="${v}">${v}</option>`).join("");
+  }
+
+  function renderDashboard(viajes) {
+    destroyCharts();
     const conDatos = viajes.filter((v) => v.cargaPlanta.muestras.length);
     const conGranja = viajes.filter((v) => v.granja && v.granja.muestrasLlegada?.length);
 
@@ -67,28 +99,72 @@
       : "—";
     const uniProm = Store.promedio(conGranja.map((v) => v.granja.uniformidadPct));
 
-    document.getElementById("kpis").innerHTML = `
-      <div class="card kpi-card">
-        <div class="kpi-label">Δ Temp. cloacal promedio (llegada − salida)</div>
-        <div class="kpi-value ${promSalida!=null && promLlegada!=null && Math.abs(promLlegada-promSalida)>0.6 ? "heat":"cool"}">
-          ${promSalida!=null && promLlegada!=null ? (promLlegada-promSalida>0?"+":"")+(promLlegada-promSalida).toFixed(2)+"°C" : "—"}
+    if (!viajes.length) {
+      document.getElementById("kpis").innerHTML = `<div class="card empty-state" style="grid-column: 1 / -1;">Sin viajes para los filtros seleccionados.</div>`;
+    } else {
+      document.getElementById("kpis").innerHTML = `
+        <div class="card kpi-card">
+          <div class="kpi-label">Δ Temp. cloacal promedio (llegada − salida)</div>
+          <div class="kpi-value ${promSalida!=null && promLlegada!=null && Math.abs(promLlegada-promSalida)>0.6 ? "heat":"cool"}">
+            ${promSalida!=null && promLlegada!=null ? (promLlegada-promSalida>0?"+":"")+(promLlegada-promSalida).toFixed(2)+"°C" : "—"}
+          </div>
+          <div class="kpi-delta">Salida ${promSalida?.toFixed(1) ?? "—"}°C → Llegada ${promLlegada?.toFixed(1) ?? "—"}°C</div>
         </div>
-        <div class="kpi-delta">Salida ${promSalida?.toFixed(1) ?? "—"}°C → Llegada ${promLlegada?.toFixed(1) ?? "—"}°C</div>
-      </div>
-      <div class="card kpi-card">
-        <div class="kpi-label">Cumplimiento de salida (±10 min vs. prog.)</div>
-        <div class="kpi-value ${pctCumplimiento!=="—" && pctCumplimiento<80 ? "warn":"cool"}">${pctCumplimiento}${pctCumplimiento!=="—"?"%":""}</div>
-        <div class="kpi-delta">Contraste hora prevista vs. GPS / geocercas</div>
-      </div>
-      <div class="card kpi-card">
-        <div class="kpi-label">Uniformidad promedio de peso</div>
-        <div class="kpi-value ${uniProm!=null && uniProm<85 ? "warn":"cool"}">${uniProm!=null?uniProm.toFixed(1)+"%":"—"}</div>
-        <div class="kpi-delta">% de aves dentro de ±10% del peso promedio del lote</div>
-      </div>
-    `;
+        <div class="card kpi-card">
+          <div class="kpi-label">Cumplimiento de salida (±10 min vs. prog.)</div>
+          <div class="kpi-value ${pctCumplimiento!=="—" && pctCumplimiento<80 ? "warn":"cool"}">${pctCumplimiento}${pctCumplimiento!=="—"?"%":""}</div>
+          <div class="kpi-delta">Contraste hora prevista vs. GPS / geocercas</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Uniformidad promedio de peso</div>
+          <div class="kpi-value ${uniProm!=null && uniProm<85 ? "warn":"cool"}">${uniProm!=null?uniProm.toFixed(1)+"%":"—"}</div>
+          <div class="kpi-delta">% de aves dentro de ±10% del peso promedio del lote</div>
+        </div>
+      `;
+    }
+
+    // --- Dimensión de resultados: promedio / máximo / mínimo / desv. estándar / %cumplimiento ---
+    const tempsSalida = conDatos.flatMap((v) => v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+    const tempsLlegada = conGranja.flatMap((v) => v.granja.muestrasLlegada.map((m) => m.tempCloacal));
+    const mortalidades = conGranja.map((v) => v.granja.mortalidad).filter((m) => m != null);
+    const tasasCrecimiento = conGranja.map((v) => Store.tasaCrecimientoPct(v.granja.pesoPromedioG)).filter((t) => t != null);
+
+    const pctOptimoSalida = tempsSalida.length ? (tempsSalida.filter((t) => Store.clasificarTemp(t) === "optimo").length / tempsSalida.length) * 100 : null;
+    const pctOptimoLlegada = tempsLlegada.length ? (tempsLlegada.filter((t) => Store.clasificarTemp(t) === "optimo").length / tempsLlegada.length) * 100 : null;
+    const pctMortalidadOk = mortalidades.length ? (mortalidades.filter((m) => m <= 0.4).length / mortalidades.length) * 100 : null;
+    const pctCrecimientoOk = tasasCrecimiento.length ? (tasasCrecimiento.filter((t) => t >= 0).length / tasasCrecimiento.length) * 100 : null;
+
+    const filasResultados = [
+      { nombre: "Temp. cloacal — salida planta (°C)", datos: tempsSalida, pct: pctOptimoSalida, hint: "% dentro de rango óptimo" },
+      { nombre: "Temp. cloacal — llegada granja (°C)", datos: tempsLlegada, pct: pctOptimoLlegada, hint: "% dentro de rango óptimo" },
+      { nombre: "Mortalidad (%)", datos: mortalidades, pct: pctMortalidadOk, hint: "% de viajes ≤ 0.4% mortalidad" },
+      { nombre: "Tasa de crecimiento vs. referencia (%)", datos: tasasCrecimiento, pct: pctCrecimientoOk, hint: "% de viajes ≥ peso de referencia" },
+    ];
+
+    document.getElementById("tabla-resultados").innerHTML =
+      filasResultados
+        .map((f) => {
+          const prom = Store.promedio(f.datos);
+          const max = Store.maximo(f.datos);
+          const min = Store.minimo(f.datos);
+          const desv = Store.desviacionEstandar(f.datos);
+          return `<tr>
+            <td>${f.nombre}<br/><span class="faint" style="font-size:10.5px;">${f.hint}</span></td>
+            <td class="num">${prom != null ? prom.toFixed(2) : "—"}</td>
+            <td class="num">${max != null ? max.toFixed(2) : "—"}</td>
+            <td class="num">${min != null ? min.toFixed(2) : "—"}</td>
+            <td class="num">${desv != null ? desv.toFixed(2) : "—"}</td>
+            <td class="num">${f.pct != null ? f.pct.toFixed(0) + "%" : "—"}</td>
+          </tr>`;
+        })
+        .join("") || `<tr><td colspan="6" class="empty-state">Sin datos para los filtros seleccionados.</td></tr>`;
+
+    // Gráficos (envueltos en try/catch: si Chart.js no cargó —p.ej. sin
+    // conexión al CDN— los KPIs y la tabla de resultados igual quedan visibles)
+    try {
 
     // Chart 1 — temp comparativa
-    new Chart(document.getElementById("chart-temp-comp"), {
+    charts.tempComp = new Chart(document.getElementById("chart-temp-comp"), {
       type: "bar",
       data: {
         labels: conDatos.map((v) => v.dtSap.slice(-4)),
@@ -102,7 +178,7 @@
 
     // Chart 2 — cumplimiento horario (delta minutos)
     const conSalida = conDatos.filter((v) => v.horaSalidaReal);
-    new Chart(document.getElementById("chart-horario"), {
+    charts.horario = new Chart(document.getElementById("chart-horario"), {
       type: "bar",
       data: {
         labels: conSalida.map((v) => v.dtSap.slice(-4)),
@@ -124,7 +200,7 @@
       const promL = Store.promedio(v.granja.muestrasLlegada.map((m) => m.tempCloacal));
       return { x: +(promL - promC).toFixed(2), y: v.granja.mortalidad, label: v.dtSap };
     });
-    new Chart(document.getElementById("chart-mortalidad"), {
+    charts.mortalidad = new Chart(document.getElementById("chart-mortalidad"), {
       type: "scatter",
       data: { datasets: [{ label: "Viajes", data: puntos, backgroundColor: "#e2231a" }] },
       options: {
@@ -141,7 +217,7 @@
     });
 
     // Chart 4 — uniformidad
-    new Chart(document.getElementById("chart-uniformidad"), {
+    charts.uniformidad = new Chart(document.getElementById("chart-uniformidad"), {
       type: "line",
       data: {
         labels: conGranja.map((v) => v.dtSap.slice(-4)),
@@ -159,6 +235,64 @@
       },
       options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, suggestedMin: 70, suggestedMax: 100 } } },
     });
+
+    // Chart 5 — mortalidad vs. tasa de crecimiento (correlación)
+    const puntosCrecimiento = conGranja
+      .map((v) => ({ x: Store.tasaCrecimientoPct(v.granja.pesoPromedioG), y: v.granja.mortalidad, label: v.dtSap }))
+      .filter((p) => p.x != null && p.y != null);
+    charts.crecimiento = new Chart(document.getElementById("chart-crecimiento"), {
+      type: "scatter",
+      data: { datasets: [{ label: "Viajes", data: puntosCrecimiento, backgroundColor: "#6a5fc4" }] },
+      options: {
+        ...chartDefaults,
+        plugins: {
+          ...chartDefaults.plugins,
+          tooltip: { callbacks: { label: (c) => `${c.raw.label}: crecimiento ${c.raw.x}% · mortalidad ${c.raw.y}%` } },
+        },
+        scales: {
+          x: { ...chartDefaults.scales.x, title: { display: true, text: "Tasa de crecimiento vs. referencia (%)", color: "#5c7396" } },
+          y: { ...chartDefaults.scales.y, title: { display: true, text: "Mortalidad (%)", color: "#5c7396" } },
+        },
+      },
+    });
+
+    } catch (err) {
+      console.error("No se pudieron dibujar los gráficos (Chart.js):", err);
+    }
+  }
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const viajesAll = Store.getViajes();
+    const selFecha = document.getElementById("f-fecha");
+    const selPlanta = document.getElementById("f-planta");
+    const selGranja = document.getElementById("f-granja");
+    const selViaje = document.getElementById("f-viaje");
+
+    const fechasDistintas = [...new Set(viajesAll.map((v) => v.fecha).filter(Boolean))].sort();
+    selFecha.innerHTML =
+      `<option value="">Todas las fechas</option>` +
+      fechasDistintas.map((f) => `<option value="${f}">${Util.fmtFecha(f)}</option>`).join("");
+    fillSelectDistinct(selPlanta, viajesAll.map((v) => v.planta), "Todas las plantas");
+    fillSelectDistinct(selGranja, viajesAll.map((v) => v.destino1), "Todas las granjas");
+    selViaje.innerHTML =
+      `<option value="">Todos los viajes</option>` +
+      viajesAll.map((v) => `<option value="${v.dtSap}">${v.dtSap} · ${v.destino1}</option>`).join("");
+
+    function aplicarFiltros() {
+      let filtrados = viajesAll;
+      if (selFecha.value) filtrados = filtrados.filter((v) => v.fecha === selFecha.value);
+      if (selPlanta.value) filtrados = filtrados.filter((v) => v.planta === selPlanta.value);
+      if (selGranja.value) filtrados = filtrados.filter((v) => v.destino1 === selGranja.value);
+      if (selViaje.value) filtrados = filtrados.filter((v) => v.dtSap === selViaje.value);
+      renderDashboard(filtrados);
+    }
+
+    [selFecha, selPlanta, selGranja, selViaje].forEach((el) => el.addEventListener("change", aplicarFiltros));
+    aplicarFiltros();
   };
 </script>
 <script src="js/nav.js"></script>
