@@ -84,7 +84,7 @@
                 <div class="rail"><div class="node"></div>${i < v.geocercas.length - 1 ? '<div class="line"></div>' : ""}</div>
                 <div class="content">
                   <div class="name">${gc.nombre}</div>
-                  <div class="time">${gc.estado === "Cruzada" ? "Cruzada · " + gc.hora : "Pendiente"}</div>
+                  <div class="time">${gc.estado === "Cruzada" ? "Cruzada · " + Util.fmtHora(gc.hora) : "Pendiente"}</div>
                 </div>
               </div>`
               )
@@ -125,9 +125,9 @@
     `;
 
     renderThermalRibbon(document.getElementById("ribbon"), [
-      { label: "Salida planta", sub: v.horaSalidaReal || v.horaSalidaPlan, temp: promC },
+      { label: "Salida planta", sub: Util.fmtHora(v.horaSalidaReal || v.horaSalidaPlan), temp: promC },
       { label: "Tránsito (amb.)", sub: "unidad temperada", temp: promAmb },
-      { label: "Llegada granja", sub: v.horaLlegadaReal, temp: promL },
+      { label: "Llegada granja", sub: Util.fmtHora(v.horaLlegadaReal), temp: promL },
     ]);
   };
 </script>

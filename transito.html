@@ -82,7 +82,7 @@
     const duracionTexto = viajeMin != null
       ? `${Math.floor(viajeMin / 60)}h ${viajeMin % 60}min`
       : v.horaSalidaReal
-        ? `En curso desde ${v.horaSalidaReal}`
+        ? `En curso desde ${Util.fmtHora(v.horaSalidaReal)}`
         : "Aún no inicia";
 
     cont.innerHTML = `
@@ -101,14 +101,14 @@
             <div class="kpi-card">
               <div class="kpi-label">Salida planta</div>
               <div class="kpi-value ${salidaDeltaMin == null ? "" : salidaDeltaMin > 10 ? "heat" : "cool"}" style="font-size:19px;">
-                ${v.horaSalidaReal || "—"} <span class="faint" style="font-size:12px;">/ prog. ${v.horaSalidaPlan}</span>
+                ${v.horaSalidaReal ? Util.fmtHora(v.horaSalidaReal) : "—"} <span class="faint" style="font-size:12px;">/ prog. ${Util.fmtHora(v.horaSalidaPlan)}</span>
               </div>
               <div class="kpi-delta">${salidaDeltaMin == null ? "Aún no registrado" : (salidaDeltaMin > 0 ? "+" : "") + salidaDeltaMin + " min vs. programado"}</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">Llegada a destino</div>
               <div class="kpi-value ${llegadaDeltaMin == null ? "" : llegadaDeltaMin > 15 ? "heat" : "cool"}" style="font-size:19px;">
-                ${v.horaLlegadaReal || "En ruta"} <span class="faint" style="font-size:12px;">/ máx. espera ${v.esperaMaxMin || "—"} min</span>
+                ${v.horaLlegadaReal ? Util.fmtHora(v.horaLlegadaReal) : "En ruta"} <span class="faint" style="font-size:12px;">/ máx. espera ${v.esperaMaxMin || "—"} min</span>
               </div>
               <div class="kpi-delta">${llegadaDeltaMin == null ? "Estimado por geocerca próxima" : (llegadaDeltaMin > 0 ? "+" : "") + llegadaDeltaMin + " min vs. fin de carga prog."}</div>
             </div>
@@ -213,7 +213,7 @@
           </div>
           <div class="content">
             <div class="name">${g.nombre}</div>
-            <div class="time">${cruzada ? "Cruzada · " + g.hora : "Pendiente"}</div>
+            <div class="time">${cruzada ? "Cruzada · " + Util.fmtHora(g.hora) : "Pendiente"}</div>
           </div>
         </div>`;
       })
@@ -283,7 +283,7 @@
     function pintarEventos(eventos) {
       eventosLista.innerHTML = eventos.length
         ? eventos
-            .map((e) => `<div style="font-size:12.5px;"><span class="mono faint">${e.hora || "—"}</span> · ${e.descripcion}</div>`)
+            .map((e) => `<div style="font-size:12.5px;"><span class="mono faint">${e.hora ? Util.fmtHora(e.hora) : "—"}</span> · ${e.descripcion}</div>`)
             .join("")
         : `<div class="faint" style="font-size:12.5px;">Sin eventos registrados.</div>`;
     }

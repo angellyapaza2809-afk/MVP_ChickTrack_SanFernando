@@ -124,9 +124,9 @@
         <span class="hint">Lote ${ultimo.edadLotes}</span>
       </div><div id="ribbon-target"></div>`;
       renderThermalRibbon(document.getElementById("ribbon-target"), [
-        { label: "Salida planta", sub: ultimo.horaSalidaReal || ultimo.horaSalidaPlan, temp: promC },
+        { label: "Salida planta", sub: Util.fmtHora(ultimo.horaSalidaReal || ultimo.horaSalidaPlan), temp: promC },
         { label: "Tránsito (amb.)", sub: "unidad temperada", temp: Store.promedio(ultimo.transito.serie.map((s) => s.temp)) },
-        { label: "Llegada granja", sub: ultimo.horaLlegadaReal, temp: promL },
+        { label: "Llegada granja", sub: Util.fmtHora(ultimo.horaLlegadaReal), temp: promL },
       ]);
     } else {
       ribbonCard.innerHTML = `<div class="empty-state">Aún no hay viajes finalizados con datos completos.</div>`;
@@ -145,8 +145,8 @@
           <td>${v.destino1}</td>
           <td>${v.unidad} · ${v.placa}</td>
           <td>${Util.badgeEstado(v.estado)}</td>
-          <td class="mono">${v.horaSalidaPlan}</td>
-          <td class="mono">${v.horaSalidaReal || "—"}</td>
+          <td class="mono">${Util.fmtHora(v.horaSalidaPlan)}</td>
+          <td class="mono">${v.horaSalidaReal ? Util.fmtHora(v.horaSalidaReal) : "—"}</td>
           <td class="num">${promC != null ? Util.badgeTemp(promC) : "—"}</td>
           <td class="num">${promL != null ? Util.badgeTemp(promL) : "—"}</td>
           <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver ciclo →</a></td>
