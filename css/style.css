@@ -88,13 +88,13 @@ h1, h2, h3, h4 {
    --------------------------------------------------------------- */
 .app-shell {
   display: grid;
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
   transition: grid-template-columns 0.2s ease;
 }
 
 @media (min-width: 861px) {
-  body.sidebar-collapsed .app-shell { grid-template-columns: 76px 1fr; }
+  body.sidebar-collapsed .app-shell { grid-template-columns: 76px minmax(0, 1fr); }
 }
 
 .sidebar {
@@ -225,6 +225,7 @@ body.sidebar-collapsed .brand-mark img { width: 32px; }
 .main {
   padding: 28px 36px 60px;
   max-width: 1360px;
+  min-width: 0;
 }
 
 .topbar {
@@ -293,6 +294,10 @@ body.sidebar-collapsed .brand-mark img { width: 32px; }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
 }
 
+@media (max-width: 560px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -301,12 +306,18 @@ body.sidebar-collapsed .brand-mark img { width: 32px; }
   box-shadow: var(--shadow-card);
 }
 
+/* Los canvas de Chart.js declaran su tamaño por atributo (o el 300px por
+   defecto del navegador antes de que la librería los redimensione); este
+   tope evita que se salgan de su tarjeta en pantallas angostas. */
+canvas { max-width: 100%; }
+
 .card-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 14px;
   gap: 10px;
+  flex-wrap: wrap;
 }
 .card-head h3 { font-size: 13.8px; font-weight: 600; color: var(--navy); }
 .card-head .hint { font-size: 11px; color: var(--text-faint); }
@@ -459,8 +470,8 @@ input[readonly] { background: var(--surface-2); color: var(--text-muted); }
 
 .divider { height: 1px; background: var(--border-soft); margin: 20px 0; border: none; }
 
-.two-col { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
-@media (max-width: 1100px) { .two-col { grid-template-columns: 1fr; } }
+.two-col { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 1100px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
 
 .muted { color: var(--text-muted); }
 .faint { color: var(--text-faint); }
@@ -500,10 +511,17 @@ input[readonly] { background: var(--surface-2); color: var(--text-muted); }
 
 /* Responsive */
 @media (max-width: 860px) {
-  .app-shell { grid-template-columns: 1fr; }
-  .sidebar { position: relative; height: auto; }
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { position: relative; height: auto; border-radius: 0 0 22px 22px; }
   .main { padding: 20px; }
   .topbar::after { left: -20px; right: -20px; }
+}
+
+@media (max-width: 480px) {
+  .main { padding: 14px; }
+  .topbar h1 { font-size: 19px; }
+  .topbar::after { left: -14px; right: -14px; }
+  .card { padding: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
