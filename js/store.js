@@ -278,11 +278,39 @@ const LINEAS_GENETICAS = ["Ross 308", "Cobb 500", "Hubbard Flex"];
 
 // --- Dimensión geográfica y organizacional por destino (referencial) ---
 const UBICACION_POR_DESTINO = {
-  "Granja Chincha Norte": { zona: "Zona Sur", subzona: "Chincha", circuito: "Circuito 3", tipoPlantel: "Recría", supervisor: "Carla Núñez Vidal", coordinador: "Renzo Ortega Lam", franquicia: "San Fernando" },
-  "Granja Cañete Sur": { zona: "Zona Sur", subzona: "Cañete", circuito: "Circuito 2", tipoPlantel: "Engorde", supervisor: "Jorge Medina Ruiz", coordinador: "Renzo Ortega Lam", franquicia: "San Fernando" },
-  "Granja Ica Km 302": { zona: "Zona Sur", subzona: "Ica", circuito: "Circuito 4", tipoPlantel: "Engorde", supervisor: "Patricia Solano Vega", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
-  "Granja Huaral": { zona: "Zona Norte Chico", subzona: "Huaral", circuito: "Circuito 1", tipoPlantel: "Recría", supervisor: "Ana Belén Castro", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
+  "Granja Chincha Norte": { codigoPlantel: "210", zona: "Zona Sur", subzona: "Chincha", circuito: "Circuito 3", tipoPlantel: "Recría", supervisor: "Carla Núñez Vidal", coordinador: "Renzo Ortega Lam", franquicia: "San Fernando" },
+  "Granja Cañete Sur": { codigoPlantel: "208", zona: "Zona Sur", subzona: "Cañete", circuito: "Circuito 2", tipoPlantel: "Engorde", supervisor: "Jorge Medina Ruiz", coordinador: "Renzo Ortega Lam", franquicia: "San Fernando" },
+  "Granja Ica Km 302": { codigoPlantel: "155", zona: "Zona Sur", subzona: "Ica", circuito: "Circuito 4", tipoPlantel: "Engorde", supervisor: "Patricia Solano Vega", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
+  "Granja Huaral": { codigoPlantel: "209", zona: "Zona Norte Chico", subzona: "Huaral", circuito: "Circuito 1", tipoPlantel: "Recría", supervisor: "Ana Belén Castro", coordinador: "Diego Herrera Paz", franquicia: "San Fernando" },
 };
+
+// ---------------------------------------------------------------
+// "Complex" — código de lote de campo: P{plantel}-{año}{rueda}-{galpón}-{sexo}
+// Ej. P210-2604-10-01 = plantel 210, campaña 2026 rueda 4, galpón 10, macho.
+// 4 ruedas por año. Sexo del galpón: 01 = macho, 02 = hembra (un galpón
+// aloja un solo sexo).
+// ---------------------------------------------------------------
+const SEXO_COMPLEX_CODIGO = { macho: "01", hembra: "02" };
+
+function pad2(n) {
+  const s = String(n ?? "").trim();
+  return s ? s.padStart(2, "0") : "";
+}
+
+// Extrae el número del galpón sin importar el prefijo con el que se
+// haya escrito (ej. "G-08" -> "08"), tal como lo pide el complex.
+function extraerNumeroGalpon(galpon) {
+  const m = String(galpon || "").match(/\d+/);
+  return m ? m[0] : "";
+}
+
+function construirComplex({ destino, anio, rueda, galpon, sexo }) {
+  const codigoPlantel = UBICACION_POR_DESTINO[destino]?.codigoPlantel;
+  const numGalpon = extraerNumeroGalpon(galpon);
+  const codigoSexo = SEXO_COMPLEX_CODIGO[sexo];
+  if (!codigoPlantel || !anio || !rueda || !numGalpon || !codigoSexo) return null;
+  return `P${codigoPlantel}-${pad2(anio)}${pad2(rueda)}-${pad2(numGalpon)}-${codigoSexo}`;
+}
 
 function fechaISO(offsetDias = 0) {
   const d = new Date();
@@ -808,6 +836,10 @@ const Store = {
   calcularChecklist,
   clasificarChecklist,
   destinosGalpones,
+  UBICACION_POR_DESTINO,
+  SEXO_COMPLEX_CODIGO,
+  extraerNumeroGalpon,
+  construirComplex,
 
   init() {
     if (!localStorage.getItem(DB_KEY)) {

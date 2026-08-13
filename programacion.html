@@ -28,10 +28,15 @@
           <div class="field"><label>Planta origen <span class="req">*</span></label><input name="planta" placeholder="Planta Incubación Lurín" required /></div>
           <div class="field"><label>Destino 1 <span class="req">*</span></label><input name="destino1" placeholder="Granja Chincha Norte" required /></div>
           <div class="field"><label>Galpón (destino 1)</label><input class="mono" name="galpon" placeholder="G-08" /></div>
+          <div class="field"><label>Sexo (galpón 1)</label><select name="sexoGalpon"><option value="">— Selecciona —</option><option value="macho">Macho</option><option value="hembra">Hembra</option></select></div>
           <div class="field"><label>Destino 2</label><input name="destino2" placeholder="Opcional — si el camión descarga en más de un galpón" /></div>
           <div class="field"><label>Galpón (destino 2)</label><input class="mono" name="galpon2" placeholder="Opcional" /></div>
+          <div class="field"><label>Sexo (galpón 2)</label><select name="sexoGalpon2"><option value="">— Selecciona —</option><option value="macho">Macho</option><option value="hembra">Hembra</option></select></div>
           <div class="field"><label>Destino 3</label><input name="destino3" placeholder="Opcional" /></div>
           <div class="field"><label>Galpón (destino 3)</label><input class="mono" name="galpon3" placeholder="Opcional" /></div>
+          <div class="field"><label>Sexo (galpón 3)</label><select name="sexoGalpon3"><option value="">— Selecciona —</option><option value="macho">Macho</option><option value="hembra">Hembra</option></select></div>
+          <div class="field"><label>Año de campaña <span class="req">*</span></label><input class="mono" type="number" name="anioCampana" min="0" max="99" placeholder="26" /></div>
+          <div class="field"><label>Rueda (1-4) <span class="req">*</span></label><select name="rueda"><option value="">— Selecciona —</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
           <div class="field"><label>Producto</label><input name="producto" value="Pollo BB" readonly /></div>
           <div class="field"><label>Cantidad producida</label><input class="mono" type="number" name="cantidad" placeholder="24000" /></div>
           <div class="field"><label>Edad / Lotes</label><input name="edadLotes" placeholder="Lote 231-A" /></div>
@@ -45,6 +50,7 @@
           <div class="field"><label>Hora retorno planta (prog.)</label><input class="mono" type="time" name="horaRetornoPlan" /></div>
           <div class="field"><label>Planta de retorno</label><input name="plantaRetorno" placeholder="Planta Incubación Lurín" /></div>
         </div>
+        <div id="complex-live-status" class="faint" style="font-size:12.5px; margin-bottom:10px; padding:10px 12px; border:1px dashed var(--border); border-radius:var(--radius-sm);"></div>
         <div id="ck-live-status" class="faint" style="font-size:12.5px; margin:-6px 0 14px; padding:10px 12px; border:1px dashed var(--border); border-radius:var(--radius-sm);"></div>
         <button class="btn btn-primary" type="submit">Cargar programación</button>
       </form>
@@ -72,7 +78,7 @@
         <tr>
           <th>D.T.</th><th>Fecha</th><th>Ruta</th><th>Origen</th><th>Destino</th>
           <th>Unidad</th><th>Placa</th><th>Conductor</th><th>Salida prog.</th><th>Estado</th>
-          <th>Checklist galpón</th><th></th>
+          <th>Complex</th><th>Checklist galpón</th><th></th>
         </tr>
       </thead>
       <tbody id="body-viajes"></tbody>
@@ -100,6 +106,46 @@
     const today = new Date().toISOString().slice(0, 10);
     document.querySelector('input[name="fecha"]').value = today;
 
+    // El año de campaña se sugiere a partir de la fecha de servicio (los
+    // 2 últimos dígitos del año), pero queda editable por si la campaña
+    // del negocio no coincide con el año calendario.
+    const inputAnio = document.querySelector('input[name="anioCampana"]');
+    function sugerirAnioCampana() {
+      const fecha = document.querySelector('input[name="fecha"]').value;
+      if (fecha && !inputAnio.value) inputAnio.value = fecha.slice(2, 4);
+      actualizarComplexEnVivo();
+    }
+    document.querySelector('input[name="fecha"]').addEventListener("change", sugerirAnioCampana);
+
+    // --- Complex por galpón: P{plantel}-{año}{rueda}-{galpón}-{sexo} ---
+    function galponesFormulario() {
+      return [
+        { destino: document.querySelector('input[name="destino1"]').value.trim(), galpon: document.querySelector('input[name="galpon"]').value.trim(), sexo: document.querySelector('select[name="sexoGalpon"]').value, label: "Galpón 1" },
+        { destino: document.querySelector('input[name="destino2"]').value.trim(), galpon: document.querySelector('input[name="galpon2"]').value.trim(), sexo: document.querySelector('select[name="sexoGalpon2"]').value, label: "Galpón 2" },
+        { destino: document.querySelector('input[name="destino3"]').value.trim(), galpon: document.querySelector('input[name="galpon3"]').value.trim(), sexo: document.querySelector('select[name="sexoGalpon3"]').value, label: "Galpón 3" },
+      ].filter((g) => g.destino && g.galpon);
+    }
+
+    function actualizarComplexEnVivo() {
+      const anio = inputAnio.value.trim();
+      const rueda = document.querySelector('select[name="rueda"]').value;
+      const cont = document.getElementById("complex-live-status");
+      const galpones = galponesFormulario();
+      if (!galpones.length) {
+        cont.innerHTML = "Completa Destino, Galpón, Sexo, Año de campaña y Rueda para generar el código de complex de cada galpón.";
+        return;
+      }
+      cont.innerHTML = galpones
+        .map((g) => {
+          const complex = Store.construirComplex({ destino: g.destino, anio, rueda, galpon: g.galpon, sexo: g.sexo });
+          const sinPlantel = !Store.UBICACION_POR_DESTINO[g.destino];
+          if (complex) return `${g.label}: <strong class="mono">${complex}</strong>`;
+          if (sinPlantel) return `${g.label}: destino "${g.destino}" sin código de plantel registrado.`;
+          return `${g.label}: falta Sexo, Año de campaña o Rueda para generar el complex.`;
+        })
+        .join("<br/>");
+    }
+
     function actualizarChecklistEnVivo() {
       const pares = Store.destinosGalpones({
         destino1: document.querySelector('input[name="destino1"]').value.trim(),
@@ -122,6 +168,14 @@
       document.querySelector(`input[name="${name}"]`).addEventListener("input", actualizarChecklistEnVivo);
     });
     actualizarChecklistEnVivo();
+
+    ["destino1", "galpon", "destino2", "galpon2", "destino3", "galpon3", "anioCampana"].forEach((name) => {
+      document.querySelector(`[name="${name}"]`).addEventListener("input", actualizarComplexEnVivo);
+    });
+    ["sexoGalpon", "sexoGalpon2", "sexoGalpon3", "rueda"].forEach((name) => {
+      document.querySelector(`[name="${name}"]`).addEventListener("change", actualizarComplexEnVivo);
+    });
+    sugerirAnioCampana();
 
     function draw() {
       const viajes = Store.getViajes();
@@ -149,6 +203,7 @@
           <td>${v.conductor}</td>
           <td class="mono">${Util.fmtHora(v.horaSalidaPlan)}</td>
           <td>${Util.badgeEstado(v.estado)}</td>
+          <td class="mono">${[v.complex1, v.complex2, v.complex3].filter(Boolean).join("<br/>") || "—"}</td>
           <td>${Store.destinosGalpones(v).map((p) => checklistBadgeHtml(p.destino, p.galpon)).join(" ") || "—"}</td>
           <td><a class="btn btn-sm btn-ghost" href="viaje.html?id=${v.id}">Ver →</a></td>
         </tr>`
@@ -164,10 +219,14 @@
       viaje.estado = "Programado";
       viaje.horaSalidaReal = "";
       viaje.horaLlegadaReal = "";
+      viaje.complex1 = Store.construirComplex({ destino: viaje.destino1, anio: viaje.anioCampana, rueda: viaje.rueda, galpon: viaje.galpon, sexo: viaje.sexoGalpon });
+      viaje.complex2 = Store.construirComplex({ destino: viaje.destino2, anio: viaje.anioCampana, rueda: viaje.rueda, galpon: viaje.galpon2, sexo: viaje.sexoGalpon2 });
+      viaje.complex3 = Store.construirComplex({ destino: viaje.destino3, anio: viaje.anioCampana, rueda: viaje.rueda, galpon: viaje.galpon3, sexo: viaje.sexoGalpon3 });
       Store.addViaje(viaje);
       e.target.reset();
       document.querySelector('input[name="fecha"]').value = today;
       actualizarChecklistEnVivo();
+      sugerirAnioCampana();
       draw();
     });
 
