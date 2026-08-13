@@ -108,7 +108,7 @@
     document.getElementById("muestras-rows").innerHTML = muestras
       .map(
         (m, idx) => `
-      <div class="flex gap-8" style="margin-bottom:8px;" data-row="${m._id}">
+      <div class="flex gap-8 wrap" style="margin-bottom:8px;" data-row="${m._id}">
         <input class="mono" style="width:64px;" value="M${idx + 1}" disabled />
         <select class="mono s-input" style="width:70px;">
           <option value="" ${!m.sexo ? "selected" : ""}>Sexo</option>
@@ -196,7 +196,7 @@
           const estado = Store.clasificarChecklist(Store.getChecklist(p.destino, p.galpon));
           const href = `checklist.html?plantel=${encodeURIComponent(p.destino)}&galpon=${encodeURIComponent(p.galpon || "")}`;
           return `
-            <div class="flex-between" style="padding:10px 0; border-bottom:1px solid var(--border-soft);">
+            <div class="flex-between wrap" style="padding:10px 0; border-bottom:1px solid var(--border-soft); gap:8px;">
               <div style="font-size:12.5px;"><strong>${p.destino}</strong> · Galpón ${p.galpon || "—"}</div>
               <div class="flex gap-8" style="align-items:center;">
                 <span class="badge ${Store.CHECKLIST_ESTADO_BADGE[estado]}">${Store.CHECKLIST_ESTADO_LABEL[estado]}</span>

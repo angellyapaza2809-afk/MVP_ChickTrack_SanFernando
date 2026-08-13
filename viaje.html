@@ -102,7 +102,7 @@
             ${checklistsViaje
               .map(
                 (c) =>
-                  `<a href="${c.href}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[c.estado]}" style="text-decoration:none;">${c.destino} · ${c.galpon || "—"}: ${Store.CHECKLIST_ESTADO_LABEL[c.estado]}</a>`
+                  `<a href="${c.href}" class="badge ${Store.CHECKLIST_ESTADO_BADGE[c.estado]}" style="text-decoration:none; white-space:normal; max-width:100%;">${c.destino} · ${c.galpon || "—"}: ${Store.CHECKLIST_ESTADO_LABEL[c.estado]}</a>`
               )
               .join("") || `<div class="empty-state">Sin galpón de destino registrado.</div>`}
           </div>
@@ -115,7 +115,7 @@
         </div>
       </div>
 
-      <div class="flex gap-8" style="margin-top:22px;">
+      <div class="flex gap-8 wrap" style="margin-top:22px;">
         <a class="btn" href="planta.html?id=${v.id}">Ir a carga en planta</a>
         <a class="btn" href="transito.html?id=${v.id}">Ir a tránsito</a>
         <a class="btn" href="granja.html?id=${v.id}">Ir a granja</a>

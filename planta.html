@@ -91,7 +91,7 @@
     document.getElementById("muestras-rows").innerHTML = muestrasActuales
       .map(
         (m, idx) => `
-      <div class="flex gap-8" style="margin-bottom:8px;" data-row="${m._id}">
+      <div class="flex gap-8 wrap" style="margin-bottom:8px;" data-row="${m._id}">
         <input class="mono" style="width:70px;" value="Muestra ${idx + 1}" disabled />
         <input class="mono temp-input" type="number" step="0.1" placeholder="40.1" value="${m.tempCloacal ?? ""}" style="width:110px;" ${formBloqueado ? "disabled" : ""} />
         <button class="btn btn-sm btn-ghost" type="button" data-remove="${m._id}" ${formBloqueado ? "disabled" : ""}>✕</button>
@@ -171,7 +171,7 @@
           <div><span class="faint">Conductor:</span> ${v.conductor}</div>
           <div><span class="faint">Estado actual:</span> ${Util.badgeEstado(v.estado)}</div>
         </div>
-        ${bloqueada ? `<div class="badge critico" style="margin-top:4px;">Unidad ya salió de planta — registro de carga bloqueado</div>` : ""}`;
+        ${bloqueada ? `<div class="badge critico" style="margin-top:4px; white-space:normal; height:auto;">Unidad ya salió de planta — registro de carga bloqueado</div>` : ""}`;
 
       muestrasActuales = (v.cargaPlanta.muestras || []).map((m) => ({ _id: "m" + muestraIdSeq++, tempCloacal: m.tempCloacal }));
       if (!muestrasActuales.length) {
