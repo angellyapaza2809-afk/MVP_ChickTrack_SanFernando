@@ -4,6 +4,8 @@
  * `PAGE_SUBTITLE` antes de cargar este script.
  */
 
+const SIDEBAR_COLLAPSE_KEY = "sf_sidebar_collapsed_v1";
+
 const NAV_ITEMS = [
   { group: "Operación" },
   { id: "dashboard", href: "index.html", label: "Panel general", icon: "◆" },
@@ -18,6 +20,8 @@ const NAV_ITEMS = [
 ];
 
 function renderShell() {
+  document.body.classList.toggle("sidebar-collapsed", localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1");
+
   const shell = document.createElement("div");
   shell.className = "app-shell";
 
@@ -26,13 +30,14 @@ function renderShell() {
       return `<div class="nav-label">${item.group}</div>`;
     }
     const active = item.id === window.PAGE ? "active" : "";
-    return `<a class="nav-link ${active}" href="${item.href}">
-      <span class="dot"></span>${item.label}
+    return `<a class="nav-link ${active}" href="${item.href}" title="${item.label}">
+      <span class="nav-icon">${item.icon || ""}</span><span class="nav-text">${item.label}</span>
     </a>`;
   }).join("");
 
   shell.innerHTML = `
     <aside class="sidebar">
+      <button class="sidebar-toggle" id="btn-toggle-sidebar" type="button" title="Contraer / expandir menú" aria-label="Contraer / expandir menú">‹</button>
       <div class="brand">
         <div class="brand-mark"><img src="img/SAN-FERNANDO-BAN_abarrotes-1.png" class="brand-logo"/></div>
         <div class="brand-text">
@@ -77,6 +82,12 @@ function renderShell() {
   }
   tick();
   setInterval(tick, 1000);
+
+  document.getElementById("btn-toggle-sidebar")?.addEventListener("click", () => {
+    const collapsed = !document.body.classList.contains("sidebar-collapsed");
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? "1" : "0");
+  });
 
   document.getElementById("btn-reset-demo")?.addEventListener("click", () => {
     if (confirm("Esto reemplazará todos los datos por el set de ejemplo original. ¿Continuar?")) {
