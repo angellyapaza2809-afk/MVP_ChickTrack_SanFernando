@@ -46,6 +46,7 @@
           <tr>
             <th style="width:36px;">Nro</th>
             <th style="min-width:260px;">Actividad</th>
+            <th style="width:70px; text-align:center;">Aplica</th>
             <th style="min-width:260px;">Nivel alcanzado</th>
             <th class="num">Peso</th>
             <th class="num">Puntaje</th>
@@ -55,7 +56,7 @@
         <tbody id="ck-items-body"></tbody>
         <tfoot>
           <tr>
-            <td colspan="3"></td>
+            <td colspan="4"></td>
             <td class="num mono" id="ck-peso-total" style="font-weight:700;"></td>
             <td class="num mono" id="ck-puntaje-total" style="font-weight:700;"></td>
             <td></td>
@@ -91,16 +92,21 @@
   function pintarItems(selecciones) {
     const tbody = document.getElementById("ck-items-body");
     tbody.innerHTML = Store.CHECKLIST_ITEMS.map((item, idx) => {
-      const sel = selecciones[idx]?.seleccion ?? null;
-      const puntaje = sel != null ? +(item.peso * (sel / 3)).toFixed(1) : null;
+      const entry = selecciones[idx] || {};
+      const activo = entry.activo !== false;
+      const sel = activo ? entry.seleccion ?? null : null;
+      const puntaje = activo && sel != null ? +(item.peso * (sel / 3)).toFixed(1) : null;
       return `
-        <tr data-row-item="${idx}">
+        <tr data-row-item="${idx}" style="${activo ? "" : "opacity:.55;"}">
           <td class="mono">${item.nro}</td>
           <td style="white-space:normal;">${item.actividad}</td>
-          <td style="white-space:normal;">${item.opciones.map((op, ni) => pillHtml(idx, ni, op, sel)).join("")}</td>
+          <td style="text-align:center;">
+            <input type="checkbox" class="item-activo-toggle" data-item="${idx}" ${activo ? "checked" : ""} title="Desmarcar para excluir este criterio del resultado final (no aplica)" />
+          </td>
+          <td style="white-space:normal;">${activo ? item.opciones.map((op, ni) => pillHtml(idx, ni, op, sel)).join("") : '<span class="faint">No aplica — no pondera</span>'}</td>
           <td class="num mono">${item.peso}</td>
-          <td class="num mono" data-puntaje-cell>${puntaje != null ? puntaje.toFixed(1) : "—"}</td>
-          <td><input class="obs-input" data-item="${idx}" value="${(selecciones[idx]?.observaciones || "").replace(/"/g, "&quot;")}" placeholder="Opcional" style="font-size:12.5px; padding:6px 8px;" /></td>
+          <td class="num mono" data-puntaje-cell>${activo ? (puntaje != null ? puntaje.toFixed(1) : "—") : "N/A"}</td>
+          <td><input class="obs-input" data-item="${idx}" value="${(entry.observaciones || "").replace(/"/g, "&quot;")}" placeholder="${activo ? "Opcional" : "Obligatorio: motivo por el que no aplica"}" style="font-size:12.5px; padding:6px 8px;${activo ? "" : " border-color:#e2231a;"}" /></td>
         </tr>`;
     }).join("");
   }
@@ -171,31 +177,35 @@
       }
     });
 
+    const r = Store.calcularChecklist(checklist.selecciones);
+
     Store.CHECKLIST_ITEMS.forEach((item, idx) => {
       const rowNum = 7 + idx;
       const row = ws.getRow(rowNum);
-      const sel = checklist.selecciones[idx]?.seleccion;
-      const puntaje = sel != null ? +(item.peso * (sel / 3)).toFixed(1) : null;
+      const entry = checklist.selecciones[idx] || {};
+      const activo = entry.activo !== false;
+      const sel = activo ? entry.seleccion : null;
+      const puntaje = activo && sel != null ? +(item.peso * (sel / 3)).toFixed(1) : null;
 
       row.getCell(1).value = item.nro;
-      row.getCell(2).value = item.actividad;
+      row.getCell(2).value = activo ? item.actividad : `${item.actividad} (NO APLICA)`;
       row.getCell(2).alignment = { vertical: "middle", wrapText: true };
       item.opciones.forEach((op, ni) => {
         const cell = row.getCell(3 + ni);
         cell.value = op == null ? "—" : op;
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: EXCEL_COLOR_OPCION[ni] } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: activo ? EXCEL_COLOR_OPCION[ni] : "FFD9D9D9" } };
         cell.alignment = centerWrap;
-        cell.font = sel === ni ? { name: "Arial", size: 11, bold: true } : fontBase;
-        if (sel === ni) {
+        cell.font = activo && sel === ni ? { name: "Arial", size: 11, bold: true } : fontBase;
+        if (activo && sel === ni) {
           const thick = { style: "medium", color: { argb: "FF000000" } };
           cell.border = { top: thick, left: thick, bottom: thick, right: thick };
         }
       });
-      row.getCell(7).value = item.peso;
+      row.getCell(7).value = activo ? item.peso : 0;
       row.getCell(7).alignment = centerWrap;
-      row.getCell(8).value = puntaje;
+      row.getCell(8).value = activo ? puntaje : "N/A";
       row.getCell(8).alignment = centerWrap;
-      row.getCell(9).value = checklist.selecciones[idx]?.observaciones || "";
+      row.getCell(9).value = entry.observaciones || "";
       row.getCell(9).alignment = { vertical: "middle", wrapText: true };
       row.height = 30;
       row.eachCell({ includeEmpty: true }, (cell) => {
@@ -213,10 +223,9 @@
     ws.getCell("A25").value = "%CUMPLIMIENTO";
     ws.getCell("A25").font = fontBold;
     ws.getCell("A25").alignment = centerWrap;
-    ws.getCell("G25").value = Store.CHECKLIST_PESO_TOTAL;
+    ws.getCell("G25").value = r.pesoTotal;
     ws.getCell("G25").font = fontBold;
     ws.getCell("G25").alignment = centerWrap;
-    const r = Store.calcularChecklist(checklist.selecciones);
     ws.getCell("H25").value = r.puntaje;
     ws.getCell("H25").font = fontBold;
     ws.getCell("H25").alignment = centerWrap;
@@ -313,8 +322,8 @@
     }
 
     function pintarTotales() {
-      document.getElementById("ck-peso-total").textContent = Store.CHECKLIST_PESO_TOTAL;
       const r = Store.calcularChecklist(checklistActual.selecciones);
+      document.getElementById("ck-peso-total").textContent = r.pesoTotal;
       document.getElementById("ck-puntaje-total").textContent = r.puntaje.toFixed(1);
     }
 
@@ -324,6 +333,17 @@
       const idx = parseInt(btn.getAttribute("data-item"), 10);
       const nivel = parseInt(btn.getAttribute("data-nivel"), 10);
       checklistActual.selecciones[idx].seleccion = checklistActual.selecciones[idx].seleccion === nivel ? null : nivel;
+      pintarItems(checklistActual.selecciones);
+      pintarTotales();
+      pintarResultado();
+    });
+
+    document.getElementById("ck-items-body").addEventListener("change", (e) => {
+      if (!e.target.classList.contains("item-activo-toggle")) return;
+      const idx = parseInt(e.target.getAttribute("data-item"), 10);
+      const activo = e.target.checked;
+      checklistActual.selecciones[idx].activo = activo;
+      if (!activo) checklistActual.selecciones[idx].seleccion = null;
       pintarItems(checklistActual.selecciones);
       pintarTotales();
       pintarResultado();
@@ -343,6 +363,11 @@
       const plantel = document.getElementById("ck-plantel").value.trim();
       const galpon = document.getElementById("ck-galpon").value.trim();
       if (!plantel || !galpon) { alert("Indica Plantel y Galpón antes de guardar."); return; }
+      const sinJustificar = checklistActual.selecciones.some((s) => s.activo === false && !(s.observaciones || "").trim());
+      if (sinJustificar) {
+        alert("Todo criterio marcado como 'No aplica' debe tener una observación que justifique por qué no se pondera.");
+        return;
+      }
       checklistActual.plantel = plantel;
       checklistActual.galpon = galpon;
       checklistActual.fecha = document.getElementById("ck-fecha").value;

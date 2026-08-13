@@ -207,25 +207,34 @@ function checklistKey(plantel, galpon) {
  * o null si aún no se evaluó). El puntaje de cada ítem es proporcional
  * al nivel elegido dentro de su peso: nivel 0 (peor) = 0, nivel 3
  * (mejor) = 100% del peso del ítem.
+ *
+ * Un ítem con `activo === false` está "apagado" para este checklist en
+ * particular (no aplica): se excluye tanto del puntaje como del peso
+ * total contra el que se calcula el %cumplimiento, y no se exige
+ * respuesta para considerar el checklist "completo".
  */
 function calcularChecklist(selecciones) {
   let puntaje = 0;
+  let pesoTotal = 0;
   let itemsRespondidos = 0;
+  let totalItems = 0;
   CHECKLIST_ITEMS.forEach((item, idx) => {
-    const sel = selecciones?.[idx]?.seleccion;
-    if (sel != null) {
+    const entry = selecciones?.[idx];
+    if (entry?.activo === false) return;
+    totalItems++;
+    pesoTotal += item.peso;
+    if (entry?.seleccion != null) {
       itemsRespondidos++;
-      puntaje += item.peso * (sel / 3);
+      puntaje += item.peso * (entry.seleccion / 3);
     }
   });
-  const totalItems = CHECKLIST_ITEMS.length;
-  const pctCumplimiento = itemsRespondidos ? +((puntaje / CHECKLIST_PESO_TOTAL) * 100).toFixed(1) : null;
+  const pctCumplimiento = itemsRespondidos && pesoTotal ? +((puntaje / pesoTotal) * 100).toFixed(1) : null;
   return {
     puntaje: +puntaje.toFixed(1),
-    pesoTotal: CHECKLIST_PESO_TOTAL,
+    pesoTotal,
     itemsRespondidos,
     totalItems,
-    completo: itemsRespondidos === totalItems,
+    completo: totalItems > 0 && itemsRespondidos === totalItems,
     pctCumplimiento,
   };
 }
@@ -674,6 +683,7 @@ function construirSelecciones(niveles, observacionesPorIndice = {}) {
   return CHECKLIST_ITEMS.map((item, idx) => ({
     seleccion: niveles[idx] ?? null,
     observaciones: observacionesPorIndice[idx] || "",
+    activo: true,
   }));
 }
 
@@ -893,7 +903,7 @@ const Store = {
       auditor: "",
       supervisor: "",
       firma: "",
-      selecciones: CHECKLIST_ITEMS.map(() => ({ seleccion: null, observaciones: "" })),
+      selecciones: CHECKLIST_ITEMS.map(() => ({ seleccion: null, observaciones: "", activo: true })),
     };
   },
 };
