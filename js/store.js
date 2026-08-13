@@ -599,6 +599,18 @@ function seedData() {
     const id = uuid();
     const f = fecha(v.diasOffset ?? 0);
 
+    // --- Complex por galpón: P{plantel}-{año}{rueda}-{galpón}-{sexo} ---
+    // (año/rueda referenciales para la demo; en producción los carga el
+    // área de Transporte al programar el viaje, igual que en el formulario).
+    const anioCampana = f.slice(2, 4);
+    const rueda = String((i % 4) + 1);
+    const sexoGalpon = i % 2 === 0 ? "hembra" : "macho";
+    const sexoGalpon2 = v.destino2 ? (i % 2 === 0 ? "macho" : "hembra") : "";
+    const sexoGalpon3 = v.destino3 ? (i % 2 === 0 ? "hembra" : "macho") : "";
+    const complex1 = construirComplex({ destino: v.destino1, anio: anioCampana, rueda, galpon: v.galpon, sexo: sexoGalpon });
+    const complex2 = v.destino2 ? construirComplex({ destino: v.destino2, anio: anioCampana, rueda, galpon: v.galpon2, sexo: sexoGalpon2 }) : null;
+    const complex3 = v.destino3 ? construirComplex({ destino: v.destino3, anio: anioCampana, rueda, galpon: v.galpon3, sexo: sexoGalpon3 }) : null;
+
     // --- Geocercas simuladas ---
     const geocercas = [
       { nombre: "Planta - Salida", hora: v.horaSalidaReal || "", estado: v.horaSalidaReal ? "Cruzada" : "Pendiente" },
@@ -696,6 +708,14 @@ function seedData() {
       id,
       fecha: f,
       ...vSinOffset,
+      anioCampana,
+      rueda,
+      sexoGalpon,
+      sexoGalpon2,
+      sexoGalpon3,
+      complex1,
+      complex2,
+      complex3,
       geocercas,
       cargaPlanta,
       transito: { serie: transitoSerie, eventos: transitoEventos, datalogger: transitoDatalogger },
