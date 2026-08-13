@@ -31,11 +31,17 @@
 
       <div class="grid grid-2">
         <div class="field"><label>Plantel (Granja)</label><input class="mono" id="g-plantel" readonly /></div>
-        <div class="field"><label>Galpón</label><input class="mono" id="g-lote-galpon" readonly /></div>
+        <div class="field"><label>Galpón <span class="req">*</span></label><input class="mono" id="g-lote-galpon" placeholder="G-08" /></div>
         <div class="field"><label>Campaña</label><input class="mono" id="g-campana" readonly /></div>
-        <div class="field"><label>Sexo del galpón</label><input class="mono" id="g-sexo-galpon" readonly /></div>
+        <div class="field"><label>Sexo del galpón <span class="req">*</span></label>
+          <select id="g-sexo-galpon">
+            <option value="">— Selecciona —</option>
+            <option value="macho">Macho</option>
+            <option value="hembra">Hembra</option>
+          </select>
+        </div>
       </div>
-      <p class="faint" style="font-size:11px; margin:-6px 0 10px;">Vienen de la programación (SAP) — no se vuelven a digitar.</p>
+      <p class="faint" style="font-size:11px; margin:-6px 0 10px;">Plantel y campaña vienen de la programación (SAP); SAP no llega a detalle de galpón, así que el galpón y el sexo del grupo se registran acá, al recepcionarlo.</p>
       <div class="field">
         <label>Código complex <span class="req">*</span></label>
         <input class="mono" id="g-complex-codigo" readonly style="font-weight:700;" />
@@ -190,27 +196,47 @@
     const inicial = preId || (Store.getViajes().find((v) => v.estado === "En Granja") || {}).id || "";
     select.value = inicial;
 
+    // Galpón y sexo se digitan acá (SAP no llega a ese detalle): el
+    // complex y el cruce con el checklist de ese galpón se arman en vivo
+    // con lo que se va escribiendo en este formulario.
+    function actualizarComplexYChecklist(v, complexConfirmado) {
+      const galpon = document.getElementById("g-lote-galpon").value.trim();
+      const sexo = document.getElementById("g-sexo-galpon").value;
+
+      const complexPreview = Store.construirComplex({ destino: v.destino1, anio: v.anioCampana, rueda: v.rueda, galpon, sexo });
+      document.getElementById("g-complex-codigo").value = complexConfirmado || complexPreview || "";
+      document.getElementById("g-complex-hint").textContent = complexConfirmado
+        ? "Confirmado en la última recepción guardada."
+        : complexPreview
+        ? 'Vista previa — se confirma al presionar "Guardar control de llegada".'
+        : "Completa Galpón, Sexo, y verifica año/rueda/código de plantel para generar el complex.";
+
+      const contChecklist = document.getElementById("g-checklist-lista");
+      if (!galpon) {
+        contChecklist.innerHTML = `<div class="empty-state">Escribe el Galpón para ver el estado de su checklist de preparación.</div>`;
+        return;
+      }
+      const estado = Store.clasificarChecklist(Store.getChecklist(v.destino1, galpon));
+      const href = `checklist.html?plantel=${encodeURIComponent(v.destino1)}&galpon=${encodeURIComponent(galpon)}`;
+      contChecklist.innerHTML = `
+        <div class="flex-between wrap" style="padding:10px 0; gap:8px;">
+          <div style="font-size:12.5px;"><strong>${v.destino1}</strong> · Galpón ${galpon}</div>
+          <div class="flex gap-8" style="align-items:center;">
+            <span class="badge ${Store.CHECKLIST_ESTADO_BADGE[estado]}">${Store.CHECKLIST_ESTADO_LABEL[estado]}</span>
+            <a class="btn btn-sm btn-ghost" href="${href}">Ver checklist →</a>
+          </div>
+        </div>`;
+    }
+
+    let viajeActual = null;
+
     function cargar() {
       const v = Store.getViaje(select.value);
+      viajeActual = v;
       const det = document.getElementById("viaje-detalle");
       if (!v) { det.textContent = ""; document.getElementById("g-checklist-lista").innerHTML = ""; muestras = []; pintarMuestras(); recalc(); dibujarRibbon(null); return; }
 
       det.innerHTML = `${v.dtSap} · ${v.destino1} · Lote ${v.edadLotes} · Unidad ${v.unidad} · ${Util.badgeEstado(v.estado)}`;
-
-      document.getElementById("g-checklist-lista").innerHTML = Store.destinosGalpones(v)
-        .map((p) => {
-          const estado = Store.clasificarChecklist(Store.getChecklist(p.destino, p.galpon));
-          const href = `checklist.html?plantel=${encodeURIComponent(p.destino)}&galpon=${encodeURIComponent(p.galpon || "")}`;
-          return `
-            <div class="flex-between wrap" style="padding:10px 0; border-bottom:1px solid var(--border-soft); gap:8px;">
-              <div style="font-size:12.5px;"><strong>${p.destino}</strong> · Galpón ${p.galpon || "—"}</div>
-              <div class="flex gap-8" style="align-items:center;">
-                <span class="badge ${Store.CHECKLIST_ESTADO_BADGE[estado]}">${Store.CHECKLIST_ESTADO_LABEL[estado]}</span>
-                <a class="btn btn-sm btn-ghost" href="${href}">Ver checklist →</a>
-              </div>
-            </div>`;
-        })
-        .join("") || `<div class="empty-state">Este viaje no tiene galpón de destino registrado.</div>`;
 
       const g = v.granja;
       const ubic = g?.ubicacionOrganizacional;
@@ -222,21 +248,15 @@
       document.getElementById("g-coordinador").value = ubic?.coordinador || "";
       document.getElementById("g-franquicia").value = ubic?.franquicia || "";
 
-      // Plantel, galpón, campaña y cantidad despachada ya viajan desde la
-      // programación (SAP) — no se le vuelve a pedir al usuario que los digite.
+      // Plantel y campaña ya viajan desde la programación (SAP). SAP no
+      // llega a detalle de galpón, así que galpón y sexo del grupo se
+      // digitan acá — se sugiere el último valor recepcionado, si hay.
       const lote = g?.loteRecepcion;
       document.getElementById("g-plantel").value = v.destino1 ?? "";
-      document.getElementById("g-lote-galpon").value = v.galpon ?? "";
+      document.getElementById("g-lote-galpon").value = lote?.galpon ?? v.galpon ?? "";
       document.getElementById("g-campana").value = v.edadLotes ?? "";
-      const SEXO_LABEL = { macho: "Macho", hembra: "Hembra" };
-      document.getElementById("g-sexo-galpon").value = SEXO_LABEL[v.sexoGalpon] || "";
-      const complexActual = lote?.complex || Store.construirComplex({ destino: v.destino1, anio: v.anioCampana, rueda: v.rueda, galpon: v.galpon, sexo: v.sexoGalpon });
-      document.getElementById("g-complex-codigo").value = complexActual || "";
-      document.getElementById("g-complex-hint").textContent = lote?.complex
-        ? "Confirmado en la última recepción guardada."
-        : complexActual
-        ? 'Vista previa — se confirma al presionar "Guardar control de llegada".'
-        : "Faltan datos en Programación (año, rueda, sexo o código de plantel) para generar el complex.";
+      document.getElementById("g-sexo-galpon").value = lote?.sexoGalpon ?? v.sexoGalpon ?? "";
+      actualizarComplexYChecklist(v, lote?.complex);
       document.getElementById("g-sexo-f").value = lote?.sexo?.F ?? "";
       document.getElementById("g-sexo-m").value = lote?.sexo?.M ?? "";
       document.getElementById("g-despachada").value = v.cantidad ?? "";
@@ -272,6 +292,13 @@
     document.getElementById("g-sexo-f").addEventListener("input", recalcSexoLote);
     document.getElementById("g-sexo-m").addEventListener("input", recalcSexoLote);
     document.getElementById("g-muertos").addEventListener("input", recalcMortalidad);
+
+    document.getElementById("g-lote-galpon").addEventListener("input", () => {
+      if (viajeActual) actualizarComplexYChecklist(viajeActual, null);
+    });
+    document.getElementById("g-sexo-galpon").addEventListener("change", () => {
+      if (viajeActual) actualizarComplexYChecklist(viajeActual, null);
+    });
 
     document.getElementById("btn-add-muestra").addEventListener("click", () => {
       muestras.push({ _id: "m" + muestraSeq++, tempCloacal: null, pesoG: null, sexo: null });
@@ -314,10 +341,14 @@
         .map((m, idx) => ({ n: idx + 1, tempCloacal: m.tempCloacal, pesoG: m.pesoG, sexo: m.sexo || null }));
       const pesos = muestrasLlegada.map((m) => m.pesoG).filter((p) => p != null);
 
+      const galponRecepcion = document.getElementById("g-lote-galpon").value.trim();
+      const sexoGalponRecepcion = document.getElementById("g-sexo-galpon").value;
+
       const granja = v.granja || {};
       granja.loteRecepcion = {
         plantel: document.getElementById("g-plantel").value,
-        galpon: document.getElementById("g-lote-galpon").value,
+        galpon: galponRecepcion,
+        sexoGalpon: sexoGalponRecepcion,
         campana: document.getElementById("g-campana").value,
         sexo: { F: form.f, M: form.m, total: form.total },
         transporte: {
@@ -325,9 +356,10 @@
           muertosTraslado: form.muertosTraslado,
           mortalidadPct,
         },
-        // Se confirma acá, al recepcionar este grupo (galpón + sexo) —
-        // año, rueda y sexo vienen ya cargados desde Programación (SAP).
-        complex: Store.construirComplex({ destino: v.destino1, anio: v.anioCampana, rueda: v.rueda, galpon: v.galpon, sexo: v.sexoGalpon }),
+        // Se confirma acá, al recepcionar este grupo — año y rueda vienen
+        // de Programación (SAP); galpón y sexo se digitan en este mismo
+        // formulario, porque SAP no llega a ese nivel de detalle.
+        complex: Store.construirComplex({ destino: v.destino1, anio: v.anioCampana, rueda: v.rueda, galpon: galponRecepcion, sexo: sexoGalponRecepcion }),
       };
       // Se mantiene sincronizado: index.html / bi.html / viaje.html leen granja.mortalidad directo.
       granja.mortalidad = mortalidadPct ?? 0;
@@ -346,10 +378,8 @@
       const v = guardarLlegada();
       if (v) {
         document.getElementById("msg").textContent = "✓ Control de llegada guardado.";
-        document.getElementById("g-complex-codigo").value = v.granja.loteRecepcion.complex || "";
-        document.getElementById("g-complex-hint").textContent = v.granja.loteRecepcion.complex
-          ? "Confirmado en la última recepción guardada."
-          : "Faltan datos en Programación (año, rueda, sexo o código de plantel) para generar el complex.";
+        viajeActual = v;
+        actualizarComplexYChecklist(v, v.granja.loteRecepcion.complex);
         dibujarRibbon(Store.getViaje(v.id));
       }
     });
