@@ -49,8 +49,8 @@
           <div class="muted" style="font-size:12.5px; margin-top:4px;">
             ${v.planta} → ${v.destino1} · Lote ${v.edadLotes} · Unidad ${v.unidad} (${v.placa}) · Conductor: ${v.conductor}
           </div>
-          ${[v.complex1, v.complex2, v.complex3].filter(Boolean).length
-            ? `<div class="muted mono" style="font-size:12px; margin-top:4px;">Complex: ${[v.complex1, v.complex2, v.complex3].filter(Boolean).join(" · ")}</div>`
+          ${v.granja?.loteRecepcion?.complex
+            ? `<div class="muted mono" style="font-size:12px; margin-top:4px;">Complex: ${v.granja.loteRecepcion.complex}</div>`
             : ""}
         </div>
         ${Util.badgeEstado(v.estado)}
