@@ -14,7 +14,15 @@
 </script>
 
 <template id="tpl-content">
-  <div class="grid grid-4" id="kpi-row"></div>
+  <div class="section-title">
+    <span class="eyebrow">HOY</span> Unidades del día
+  </div>
+  <div class="grid grid-4" id="fleet-row"></div>
+
+  <div class="section-title">
+    <span class="eyebrow">HOY</span> Temperatura cloacal
+  </div>
+  <div class="card" id="temp-hoy-card" style="margin-bottom:16px;"></div>
 
   <div class="section-title">
     <span class="eyebrow">CICLO</span> Cinta térmica del último viaje finalizado
@@ -55,63 +63,80 @@
     );
 
     const viajes = Store.getViajes();
-
-    // ---- KPIs ----
-    const enTransito = viajes.filter((v) => v.estado === "En Tránsito").length;
     const finalizados = viajes.filter((v) => v.estado === "Finalizado" || v.estado === "En Granja");
 
-    const tempsCarga = viajes.flatMap((v) => v.cargaPlanta.muestras.map((m) => m.tempCloacal));
-    const tempsLlegada = finalizados.flatMap((v) => (v.granja ? v.granja.muestrasLlegada.map((m) => m.tempCloacal) : []));
-    const promCarga = Store.promedio(tempsCarga);
-    const promLlegada = Store.promedio(tempsLlegada);
-    const desviacion = promCarga != null && promLlegada != null ? promLlegada - promCarga : null;
+    // Datos transversales del día: todos los viajes con fecha = hoy,
+    // sin importar su estado actual.
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    const viajesHoy = viajes.filter((v) => v.fecha === hoyISO);
 
-    const fueraDeRango = tempsLlegada.filter((t) => Store.clasificarTemp(t) !== "optimo").length;
-    const pctFuera = tempsLlegada.length ? ((fueraDeRango / tempsLlegada.length) * 100).toFixed(0) : "—";
+    // ---- Unidades del día (gráfico simple: 1 ícono de camión por estado) ----
+    const FLEET_TRUCK_SVG = `
+      <svg viewBox="0 0 48 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="6" width="27" height="15" rx="2" fill="currentColor" opacity="0.15"/>
+        <rect x="1" y="6" width="27" height="15" rx="2" stroke="currentColor" stroke-width="2"/>
+        <path d="M28 12H37L45 19V21H28V12Z" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="11" cy="24" r="3.4" fill="#fff" stroke="currentColor" stroke-width="2"/>
+        <circle cx="38" cy="24" r="3.4" fill="#fff" stroke="currentColor" stroke-width="2"/>
+        <line x1="1" y1="21" x2="45" y2="21" stroke="currentColor" stroke-width="2"/>
+      </svg>`;
 
-    const mortalidades = finalizados.filter((v) => v.granja).map((v) => v.granja.mortalidad);
-    const mortProm = Store.promedio(mortalidades);
-
-    const kpis = [
-      {
-        label: "Viajes en tránsito",
-        value: enTransito,
-        cls: "warn",
-        delta: `${viajes.length} programados hoy`,
-      },
-      {
-        label: "Temp. cloacal — salida planta",
-        value: promCarga != null ? promCarga.toFixed(1) + "°C" : "—",
-        cls: "cool",
-        delta: `${tempsCarga.length} muestras registradas`,
-      },
-      {
-        label: "Temp. cloacal — llegada granja",
-        value: promLlegada != null ? promLlegada.toFixed(1) + "°C" : "—",
-        cls: desviacion != null && Math.abs(desviacion) > 0.6 ? "heat" : "cool",
-        delta:
-          desviacion != null
-            ? `Δ ${desviacion > 0 ? "+" : ""}${desviacion.toFixed(1)}°C vs. salida`
-            : "Sin datos aún",
-      },
-      {
-        label: "Mortalidad promedio recepción",
-        value: mortProm != null ? mortProm.toFixed(2) + "%" : "—",
-        cls: mortProm != null && mortProm > 0.4 ? "heat" : "cool",
-        delta: `${pctFuera}% de muestras fuera de rango óptimo`,
-      },
+    const FLEET_TILES = [
+      { label: "Programadas", color: "var(--text-muted)", count: viajesHoy.filter((v) => v.estado === "Programado").length },
+      { label: "En planta", color: "var(--accent-warn)", count: viajesHoy.filter((v) => v.estado === "En Carga").length },
+      { label: "En trayecto", color: "var(--accent-info)", count: viajesHoy.filter((v) => v.estado === "En Tránsito").length },
+      { label: "En granja", color: "var(--accent-cool)", count: viajesHoy.filter((v) => v.estado === "En Granja" || v.estado === "Finalizado").length },
     ];
 
-    document.getElementById("kpi-row").innerHTML = kpis
-      .map(
-        (k) => `
-      <div class="card kpi-card">
-        <div class="kpi-label">${k.label}</div>
-        <div class="kpi-value ${k.cls}">${k.value}</div>
-        <div class="kpi-delta">${k.delta}</div>
+    document.getElementById("fleet-row").innerHTML = FLEET_TILES.map(
+      (t) => `
+      <div class="card fleet-tile">
+        <div class="fleet-icon" style="color:${t.color}">${FLEET_TRUCK_SVG}</div>
+        <div>
+          <div class="fleet-count" style="color:${t.color}">${t.count}</div>
+          <div class="fleet-label">${t.label}</div>
+        </div>
       </div>`
-      )
-      .join("");
+    ).join("");
+
+    // ---- Temperatura cloacal — hoy (transversal a todos los viajes del día) ----
+    const tempsCargaHoy = viajesHoy.flatMap((v) => v.cargaPlanta.muestras.map((m) => m.tempCloacal));
+    const tempsLlegadaHoy = viajesHoy.filter((v) => v.granja).flatMap((v) => v.granja.muestrasLlegada.map((m) => m.tempCloacal));
+    const mortalidadHoy = Store.promedio(viajesHoy.filter((v) => v.granja).map((v) => v.granja.mortalidad));
+
+    function miniStat(label, valor) {
+      return `<div class="mini-stat">
+        <div class="mini-stat-label">${label}</div>
+        ${valor != null ? Util.badgeTemp(valor) : '<span class="badge sin-dato">Sin dato</span>'}
+      </div>`;
+    }
+
+    document.getElementById("temp-hoy-card").innerHTML = `
+      <div class="card-head">
+        <h3>Temperatura cloacal</h3>
+        <span class="hint">Máximo · mínimo · promedio — transversal a todos los viajes de hoy</span>
+      </div>
+      <div class="grid grid-2 temp-groups">
+        <div class="temp-group">
+          <div class="temp-group-title">En planta (salida)</div>
+          <div class="mini-stat-row">
+            ${miniStat("Máximo", Store.maximo(tempsCargaHoy))}
+            ${miniStat("Mínimo", Store.minimo(tempsCargaHoy))}
+            ${miniStat("Promedio", Store.promedio(tempsCargaHoy))}
+          </div>
+          <div class="faint" style="font-size:11px; margin-top:12px;">${tempsCargaHoy.length} muestras registradas hoy</div>
+        </div>
+        <div class="temp-group">
+          <div class="temp-group-title">En granja (llegada)</div>
+          <div class="mini-stat-row">
+            ${miniStat("Máximo", Store.maximo(tempsLlegadaHoy))}
+            ${miniStat("Mínimo", Store.minimo(tempsLlegadaHoy))}
+            ${miniStat("Promedio", Store.promedio(tempsLlegadaHoy))}
+          </div>
+          <div class="faint" style="font-size:11px; margin-top:12px;">${tempsLlegadaHoy.length} muestras hoy · Mortalidad prom. ${mortalidadHoy != null ? mortalidadHoy.toFixed(2) + "%" : "—"}</div>
+        </div>
+      </div>
+    `;
 
     // ---- Cinta térmica del último finalizado ----
     const ultimo = viajes.find((v) => v.estado === "Finalizado") || finalizados[0];
