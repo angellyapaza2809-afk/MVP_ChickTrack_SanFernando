@@ -27,14 +27,8 @@
           <div class="field"><label>Ruta (SAP)</label><input class="mono" name="ruta" placeholder="R-014" /></div>
           <div class="field"><label>Planta origen <span class="req">*</span></label><input name="planta" placeholder="Planta Incubación Lurín" required /></div>
           <div class="field"><label>Destino 1 <span class="req">*</span></label><input name="destino1" placeholder="Granja Chincha Norte" required /></div>
-          <div class="field"><label>Galpón (destino 1)</label><input class="mono" name="galpon" placeholder="G-08" /></div>
-          <div class="field"><label>Sexo (galpón 1)</label><select name="sexoGalpon"><option value="">— Selecciona —</option><option value="macho">Macho</option><option value="hembra">Hembra</option></select></div>
-          <div class="field"><label>Destino 2</label><input name="destino2" placeholder="Opcional — si el camión descarga en más de un galpón" /></div>
-          <div class="field"><label>Galpón (destino 2)</label><input class="mono" name="galpon2" placeholder="Opcional" /></div>
-          <div class="field"><label>Sexo (galpón 2)</label><select name="sexoGalpon2"><option value="">— Selecciona —</option><option value="macho">Macho</option><option value="hembra">Hembra</option></select></div>
+          <div class="field"><label>Destino 2</label><input name="destino2" placeholder="Opcional — si el camión reparte en más de un plantel" /></div>
           <div class="field"><label>Destino 3</label><input name="destino3" placeholder="Opcional" /></div>
-          <div class="field"><label>Galpón (destino 3)</label><input class="mono" name="galpon3" placeholder="Opcional" /></div>
-          <div class="field"><label>Sexo (galpón 3)</label><select name="sexoGalpon3"><option value="">— Selecciona —</option><option value="macho">Macho</option><option value="hembra">Hembra</option></select></div>
           <div class="field"><label>Año de campaña <span class="req">*</span></label><input class="mono" type="number" name="anioCampana" min="0" max="99" placeholder="26" /></div>
           <div class="field"><label>Rueda (1-4) <span class="req">*</span></label><select name="rueda"><option value="">— Selecciona —</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
           <div class="field"><label>Producto</label><input name="producto" value="Pollo BB" readonly /></div>
@@ -50,8 +44,7 @@
           <div class="field"><label>Hora retorno planta (prog.)</label><input class="mono" type="time" name="horaRetornoPlan" /></div>
           <div class="field"><label>Planta de retorno</label><input name="plantaRetorno" placeholder="Planta Incubación Lurín" /></div>
         </div>
-        <p class="faint" style="font-size:11px; margin:-6px 0 14px;">Año, rueda y sexo por galpón se usarán para armar el código de complex — se confirma recién en "Recepción en granja".</p>
-        <div id="ck-live-status" class="faint" style="font-size:12.5px; margin:-6px 0 14px; padding:10px 12px; border:1px dashed var(--border); border-radius:var(--radius-sm);"></div>
+        <p class="faint" style="font-size:11px; margin:-6px 0 14px;">SAP solo llega hasta plantel — el galpón, el sexo del grupo y el código de complex se registran recién en "Recepción en granja".</p>
         <button class="btn btn-primary" type="submit">Cargar programación</button>
       </form>
     </div>
@@ -118,29 +111,6 @@
     }
     document.querySelector('input[name="fecha"]').addEventListener("change", sugerirAnioCampana);
 
-    function actualizarChecklistEnVivo() {
-      const pares = Store.destinosGalpones({
-        destino1: document.querySelector('input[name="destino1"]').value.trim(),
-        galpon: document.querySelector('input[name="galpon"]').value.trim(),
-        destino2: document.querySelector('input[name="destino2"]').value.trim(),
-        galpon2: document.querySelector('input[name="galpon2"]').value.trim(),
-        destino3: document.querySelector('input[name="destino3"]').value.trim(),
-        galpon3: document.querySelector('input[name="galpon3"]').value.trim(),
-      }).filter((p) => p.galpon);
-      const cont = document.getElementById("ck-live-status");
-      if (!pares.length) {
-        cont.innerHTML = "Escribe Destino y Galpón (uno por cada galpón donde descarga el camión) para ver el estado de sus checklists de preparación.";
-        return;
-      }
-      cont.innerHTML = pares
-        .map((p) => `Checklist de <strong>${p.destino} · ${p.galpon}</strong>: ${checklistBadgeHtml(p.destino, p.galpon)}`)
-        .join("<br/>");
-    }
-    ["destino1", "galpon", "destino2", "galpon2", "destino3", "galpon3"].forEach((name) => {
-      document.querySelector(`input[name="${name}"]`).addEventListener("input", actualizarChecklistEnVivo);
-    });
-    actualizarChecklistEnVivo();
-
     sugerirAnioCampana();
 
     function draw() {
@@ -187,7 +157,6 @@
       Store.addViaje(viaje);
       e.target.reset();
       document.querySelector('input[name="fecha"]').value = today;
-      actualizarChecklistEnVivo();
       sugerirAnioCampana();
       draw();
     });

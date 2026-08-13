@@ -687,12 +687,13 @@ function seedData() {
         ubicacionOrganizacional: UBICACION_POR_DESTINO[v.destino1] || null,
         loteRecepcion: {
           plantel: v.destino1 || "",
+          // SAP no llega a detalle de galpón: galpón y sexo del grupo se
+          // digitan recién al recepcionar (acá, referenciales para la demo).
           galpon: v.galpon || "",
+          sexoGalpon,
           campana: v.edadLotes || "",
           sexo: { F: fLote, M: mLote, total: totalLote },
           transporte: { cantidadDespachada, muertosTraslado, mortalidadPct },
-          // El complex se confirma recién en Recepción en granja, con el
-          // grupo (galpón + sexo) efectivamente recepcionado.
           complex: construirComplex({ destino: v.destino1, anio: anioCampana, rueda, galpon: v.galpon, sexo: sexoGalpon }),
         },
         // Se mantiene por compatibilidad con index.html / bi.html / viaje.html,
