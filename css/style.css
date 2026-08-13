@@ -319,16 +319,18 @@ body.sidebar-collapsed .brand-mark img { width: 32px; }
 .kpi-value.cool { color: var(--accent-cool); }
 .kpi-value.warn { color: var(--accent-warn); }
 
-/* Unidades del día — ícono simple de camión + cifra por estado */
-.fleet-tile { display: flex; align-items: center; gap: 14px; }
-.fleet-icon { width: 44px; height: 28px; flex-shrink: 0; }
+/* Unidades del día — ícono pequeño de camión + cifra protagonista por estado */
+.fleet-tile { display: flex; align-items: center; gap: 12px; }
+.fleet-icon { width: 22px; height: 15px; flex-shrink: 0; opacity: 0.75; }
 .fleet-icon svg { width: 100%; height: 100%; display: block; }
-.fleet-count { font-family: var(--font-mono); font-size: 28px; font-weight: 700; line-height: 1; }
-.fleet-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; margin-top: 5px; }
+.fleet-count { font-family: var(--font-mono); font-size: 32px; font-weight: 700; line-height: 1; }
+.fleet-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; margin-top: 6px; }
 
 /* Temperatura cloacal — hoy: máx / mín / prom por etapa */
 .temp-groups { gap: 28px; }
-.temp-group-title { font-size: 12.5px; font-weight: 700; color: var(--navy); margin-bottom: 12px; }
+.temp-group-title { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--navy); margin-bottom: 12px; }
+.temp-group-icon { width: 17px; height: 17px; flex-shrink: 0; color: var(--text-muted); }
+.temp-group-icon svg { width: 100%; height: 100%; display: block; }
 .mini-stat-row { display: flex; gap: 22px; flex-wrap: wrap; }
 .mini-stat { display: flex; flex-direction: column; gap: 7px; }
 .mini-stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 700; }
