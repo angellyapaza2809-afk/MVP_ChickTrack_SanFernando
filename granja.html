@@ -191,10 +191,15 @@
     );
 
     const select = document.getElementById("select-viaje");
-    Util.fillSelectViajes(select, Store.getViajes(), { placeholder: "Selecciona una unidad…" });
+    // Solo unidades que ya llegaron a granja — mientras están cargando en
+    // planta o en tránsito, no corresponde recepcionarlas todavía.
+    function refrescarListaViajes(seleccionarId) {
+      const enGranja = Store.getViajes().filter((v) => v.estado === "En Granja");
+      Util.fillSelectViajes(select, enGranja, { placeholder: "Selecciona una unidad…" });
+      select.value = enGranja.some((v) => v.id === seleccionarId) ? seleccionarId : "";
+    }
     const preId = Util.qs("id");
-    const inicial = preId || (Store.getViajes().find((v) => v.estado === "En Granja") || {}).id || "";
-    select.value = inicial;
+    refrescarListaViajes(preId || (Store.getViajes().find((v) => v.estado === "En Granja") || {}).id || "");
 
     // Galpón y sexo se digitan acá (SAP no llega a ese detalle): el
     // complex y el cruce con el checklist de ese galpón se arman en vivo
@@ -390,7 +395,9 @@
       if (!v) return;
       Store.updateViaje(v.id, { estado: "Finalizado" });
       document.getElementById("msg").textContent = "✓ Ciclo finalizado. Datos enviados al dashboard BI.";
-      select.dispatchEvent(new Event("change"));
+      // Ya no está "En Granja": sale de la lista de unidades a recepcionar.
+      refrescarListaViajes("");
+      cargar();
     });
   };
 </script>

@@ -374,10 +374,13 @@
       document.getElementById("tpl-content").content.cloneNode(true)
     );
     const select = document.getElementById("select-viaje");
-    Util.fillSelectViajes(select, Store.getViajes(), { placeholder: "Selecciona una unidad…" });
+    // Solo unidades en tránsito — antes de salir de planta o después de
+    // llegar a granja, no corresponde monitorearlas acá.
+    const enTransito = Store.getViajes().filter((v) => v.estado === "En Tránsito");
+    Util.fillSelectViajes(select, enTransito, { placeholder: "Selecciona una unidad…" });
 
     const preId = Util.qs("id");
-    const inicial = preId || (Store.getViajes().find((v) => v.estado === "En Tránsito") || {}).id || "";
+    const inicial = preId || (enTransito[0] || {}).id || "";
     select.value = inicial;
     pintar(inicial);
 
