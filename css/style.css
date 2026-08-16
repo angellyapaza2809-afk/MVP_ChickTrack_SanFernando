@@ -509,6 +509,39 @@ input[readonly] { background: var(--surface-2); color: var(--text-muted); }
 /* Frase de marca opcional (usar con moderación) */
 .brand-script { font-family: var(--font-script); font-size: 22px; color: var(--accent-heat); font-weight: 600; }
 
+/* ---------------------------------------------------------------
+   PORTAL PLANTEL — rastreo de pedido estilo delivery-app
+   --------------------------------------------------------------- */
+.pedido-stepper { display: flex; align-items: flex-start; margin: 18px 0 6px; }
+.pedido-step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+.pedido-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.pedido-step.done:not(:last-child)::after { background: var(--accent-cool); }
+.pedido-step .dot {
+  width: 21px; height: 21px;
+  border-radius: 50%;
+  border: 2.5px solid var(--border);
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: var(--text-faint);
+  z-index: 1;
+}
+.pedido-step.done .dot { border-color: var(--accent-cool); background: var(--accent-cool); color: #fff; }
+.pedido-step.active .dot { border-color: var(--accent-heat); color: var(--accent-heat); box-shadow: 0 0 0 3px var(--accent-heat-soft); }
+.pedido-step .step-label { font-size: 10.5px; margin-top: 7px; color: var(--text-muted); text-align: center; font-weight: 600; line-height: 1.25; }
+.pedido-step.active .step-label { color: var(--accent-heat); }
+.pedido-step.done .step-label { color: var(--accent-cool); }
+
+.pedido-card + .pedido-card { margin-top: 16px; }
+
 /* Responsive */
 @media (max-width: 860px) {
   .app-shell { grid-template-columns: minmax(0, 1fr); }

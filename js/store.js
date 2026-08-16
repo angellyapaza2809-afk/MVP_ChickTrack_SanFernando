@@ -325,7 +325,7 @@ function seedData() {
     {
       dtSap: "0080012345",
       ruta: "R-014",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Mala",
       destino1: "Granja Chincha Norte",
       destino2: "",
       destino3: "",
@@ -340,7 +340,7 @@ function seedData() {
       horaCargaFinPlan: "05:50",
       esperaMaxMin: 25,
       horaRetornoPlan: "09:10",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Mala",
       estado: "Finalizado",
       horaSalidaReal: "05:34",
       horaLlegadaReal: "07:48",
@@ -349,7 +349,7 @@ function seedData() {
     {
       dtSap: "0080012346",
       ruta: "R-021",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Mala",
       destino1: "Granja Cañete Sur",
       destino2: "",
       destino3: "",
@@ -364,7 +364,7 @@ function seedData() {
       horaCargaFinPlan: "06:20",
       esperaMaxMin: 20,
       horaRetornoPlan: "10:05",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Mala",
       estado: "En Tránsito",
       horaSalidaReal: "06:05",
       horaLlegadaReal: "",
@@ -373,7 +373,7 @@ function seedData() {
     {
       dtSap: "0080012347",
       ruta: "R-007",
-      planta: "Planta Incubación Chincha",
+      planta: "Planta Chincha",
       destino1: "Granja Ica Km 302",
       destino2: "",
       destino3: "",
@@ -388,7 +388,7 @@ function seedData() {
       horaCargaFinPlan: "05:35",
       esperaMaxMin: 25,
       horaRetornoPlan: "08:50",
-      plantaRetorno: "Planta Incubación Chincha",
+      plantaRetorno: "Planta Chincha",
       estado: "En Carga",
       horaSalidaReal: "",
       horaLlegadaReal: "",
@@ -397,7 +397,7 @@ function seedData() {
     {
       dtSap: "0080012348",
       ruta: "R-030",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Chancay",
       destino1: "Granja Huaral",
       destino2: "",
       destino3: "",
@@ -412,7 +412,7 @@ function seedData() {
       horaCargaFinPlan: "07:20",
       esperaMaxMin: 20,
       horaRetornoPlan: "10:40",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Chancay",
       estado: "Programado",
       horaSalidaReal: "",
       horaLlegadaReal: "",
@@ -421,7 +421,7 @@ function seedData() {
     {
       dtSap: "0080012349",
       ruta: "R-014",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Mala",
       destino1: "Granja Chincha Norte",
       destino2: "",
       destino3: "",
@@ -436,7 +436,7 @@ function seedData() {
       horaCargaFinPlan: "05:50",
       esperaMaxMin: 25,
       horaRetornoPlan: "09:10",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Mala",
       estado: "En Granja",
       horaSalidaReal: "05:31",
       horaLlegadaReal: "07:39",
@@ -448,7 +448,7 @@ function seedData() {
     {
       dtSap: "0080012350",
       ruta: "R-021",
-      planta: "Planta Incubación Chincha",
+      planta: "Planta Chincha",
       destino1: "Granja Cañete Sur",
       destino2: "",
       destino3: "",
@@ -463,7 +463,7 @@ function seedData() {
       horaCargaFinPlan: "06:05",
       esperaMaxMin: 20,
       horaRetornoPlan: "09:40",
-      plantaRetorno: "Planta Incubación Chincha",
+      plantaRetorno: "Planta Chincha",
       estado: "Finalizado",
       horaSalidaReal: "05:48",
       horaLlegadaReal: "08:02",
@@ -472,7 +472,7 @@ function seedData() {
     {
       dtSap: "0080012351",
       ruta: "R-007",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Mala",
       destino1: "Granja Ica Km 302",
       destino2: "",
       destino3: "",
@@ -487,7 +487,7 @@ function seedData() {
       horaCargaFinPlan: "05:20",
       esperaMaxMin: 25,
       horaRetornoPlan: "08:35",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Mala",
       estado: "Finalizado",
       horaSalidaReal: "05:03",
       horaLlegadaReal: "07:29",
@@ -496,7 +496,7 @@ function seedData() {
     {
       dtSap: "0080012352",
       ruta: "R-030",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Chancay",
       destino1: "Granja Huaral",
       destino2: "",
       destino3: "",
@@ -511,7 +511,7 @@ function seedData() {
       horaCargaFinPlan: "07:05",
       esperaMaxMin: 20,
       horaRetornoPlan: "10:20",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Chancay",
       estado: "Finalizado",
       horaSalidaReal: "06:47",
       horaLlegadaReal: "08:58",
@@ -520,7 +520,7 @@ function seedData() {
     {
       dtSap: "0080012353",
       ruta: "R-014",
-      planta: "Planta Incubación Chincha",
+      planta: "Planta Chincha",
       destino1: "Granja Chincha Norte",
       destino2: "",
       destino3: "",
@@ -535,7 +535,7 @@ function seedData() {
       horaCargaFinPlan: "05:40",
       esperaMaxMin: 25,
       horaRetornoPlan: "09:00",
-      plantaRetorno: "Planta Incubación Chincha",
+      plantaRetorno: "Planta Chincha",
       estado: "Finalizado",
       horaSalidaReal: "05:22",
       horaLlegadaReal: "07:35",
@@ -544,7 +544,7 @@ function seedData() {
     {
       dtSap: "0080012354",
       ruta: "R-021",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Mala",
       destino1: "Granja Cañete Sur",
       destino2: "",
       destino3: "",
@@ -559,7 +559,7 @@ function seedData() {
       horaCargaFinPlan: "06:50",
       esperaMaxMin: 20,
       horaRetornoPlan: "10:15",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Mala",
       estado: "Finalizado",
       horaSalidaReal: "06:33",
       horaLlegadaReal: "08:41",
@@ -570,7 +570,7 @@ function seedData() {
     {
       dtSap: "0080012355",
       ruta: "R-014",
-      planta: "Planta Incubación Lurín",
+      planta: "Planta Mala",
       destino1: "Granja Chincha Norte",
       destino2: "Granja Cañete Sur",
       destino3: "Granja Huaral",
@@ -587,7 +587,7 @@ function seedData() {
       horaCargaFinPlan: "05:30",
       esperaMaxMin: 30,
       horaRetornoPlan: "10:00",
-      plantaRetorno: "Planta Incubación Lurín",
+      plantaRetorno: "Planta Mala",
       estado: "Finalizado",
       horaSalidaReal: "05:12",
       horaLlegadaReal: "08:20",
@@ -831,6 +831,35 @@ function sumarMin(hhmm, min) {
   return d.toTimeString().slice(0, 5);
 }
 
+function minutosEntreHoras(hhmm1, hhmm2) {
+  if (!hhmm1 || !hhmm2) return null;
+  const [h1, m1] = hhmm1.split(":").map(Number);
+  const [h2, m2] = hhmm2.split(":").map(Number);
+  return h2 * 60 + m2 - (h1 * 60 + m1);
+}
+
+// ---------------------------------------------------------------
+// ETA (Portal Plantel) — estimado simple: hora de salida (real, o
+// programada si aún no salió) + duración promedio histórica de esa
+// ruta (viajes ya finalizados hacia el mismo destino). No hay GPS en
+// vivo en este MVP, así que es referencial, no en tiempo real.
+// ---------------------------------------------------------------
+function estimarDuracionRutaMin(destino1, viajes) {
+  const duraciones = viajes
+    .filter((v) => v.destino1 === destino1 && v.horaSalidaReal && v.horaLlegadaReal)
+    .map((v) => minutosEntreHoras(v.horaSalidaReal, v.horaLlegadaReal))
+    .filter((d) => d != null && d > 0);
+  return duraciones.length ? Math.round(promedio(duraciones)) : null;
+}
+
+function estimarETA(viaje, viajes) {
+  if (viaje.horaLlegadaReal) return viaje.horaLlegadaReal;
+  const duracion = estimarDuracionRutaMin(viaje.destino1, viajes);
+  const horaBase = viaje.horaSalidaReal || viaje.horaSalidaPlan;
+  if (!horaBase || duracion == null) return null;
+  return sumarMin(horaBase, duracion);
+}
+
 // ---------------------------------------------------------------
 // API pública del store
 // ---------------------------------------------------------------
@@ -859,6 +888,7 @@ const Store = {
   SEXO_COMPLEX_CODIGO,
   extraerNumeroGalpon,
   construirComplex,
+  estimarETA,
 
   init() {
     if (!localStorage.getItem(DB_KEY)) {
