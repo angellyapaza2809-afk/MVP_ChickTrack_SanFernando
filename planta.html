@@ -144,7 +144,9 @@
     );
 
     const select = document.getElementById("select-viaje");
-    const todos = Store.getViajes();
+    // Solo unidades que todavía no salieron de planta — una vez en
+    // tránsito/granja, ya no corresponde cargarlas acá.
+    const todos = Store.getViajes().filter((v) => ESTADOS_EDITABLES_PLANTA.includes(v.estado));
     Util.fillSelectViajes(select, todos, { placeholder: "Selecciona la unidad / D.T. a cargar…" });
 
     const preId = Util.qs("id");
