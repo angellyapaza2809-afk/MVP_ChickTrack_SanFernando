@@ -15,6 +15,8 @@ const NAV_ITEMS = [
   { id: "transito", href: "transito.html", label: "Tránsito · GPS", icon: "②" },
   { id: "checklist", href: "checklist.html", label: "Checklist galpón", icon: "☑" },
   { id: "granja", href: "granja.html", label: "Recepción en granja", icon: "③" },
+  { group: "Cliente interno" },
+  { id: "pedidos", href: "pedidos.html", label: "Portal Plantel", icon: "④" },
   { group: "Analítica" },
   { id: "bi", href: "bi.html", label: "Dashboard BI", icon: "▦" },
 ];

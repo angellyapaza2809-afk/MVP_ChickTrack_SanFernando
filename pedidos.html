@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portal Plantel · Ciclo Térmico BB</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<script>
+  window.PAGE = "pedidos";
+  window.PAGE_TITLE = "④ Portal Plantel";
+  window.PAGE_SUBTITLE = "Tus pedidos de pollito BB: origen, cantidad, rastreo y calificación de la entrega — como cliente interno de San Fernando";
+</script>
+
+<template id="tpl-content">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="field" style="max-width:420px; margin-bottom:0;">
+      <label>Estás viendo como (Plantel)</label>
+      <select id="select-plantel"></select>
+    </div>
+  </div>
+
+  <div id="pedidos-resumen" class="grid grid-4" style="margin-bottom:20px;"></div>
+
+  <div id="pedidos-lista"></div>
+</template>
+
+<script src="js/store.js"></script>
+<script src="js/util.js"></script>
+<script>
+  const PEDIDO_PASOS = ["Programado", "En Carga", "En Tránsito", "En Granja", "Finalizado"];
+  const PEDIDO_PASO_LABEL = {
+    "Programado": "Confirmado",
+    "En Carga": "Preparando",
+    "En Tránsito": "En camino",
+    "En Granja": "Llegó",
+    "Finalizado": "Entregado",
+  };
+  const CONFORMIDAD_LABEL = { conforme: "Conforme", observaciones: "Con observaciones", no_conforme: "No conforme" };
+  const CONFORMIDAD_BADGE = { conforme: "optimo", observaciones: "alerta", no_conforme: "critico" };
+
+  // Borrador de calificación en memoria mientras el plantel la completa
+  // (recién se guarda al presionar "Enviar calificación").
+  let feedbackDraft = {};
+
+  function pedidoStepperHtml(estado) {
+    const idxActual = PEDIDO_PASOS.indexOf(estado);
+    const entregado = estado === "Finalizado";
+    return `<div class="pedido-stepper">${PEDIDO_PASOS.map((paso, idx) => {
+      const done = entregado || idx < idxActual;
+      const cls = done ? "done" : idx === idxActual ? "active" : "";
+      return `<div class="pedido-step ${cls}">
+        <div class="dot">${done ? "✓" : idx + 1}</div>
+        <div class="step-label">${PEDIDO_PASO_LABEL[paso]}</div>
+      </div>`;
+    }).join("")}</div>`;
+  }
+
+  function npsBadgeCls(nps) {
+    if (nps >= 9) return "optimo";
+    if (nps >= 7) return "alerta";
+    return "critico";
+  }
+
+  function feedbackReadonlyHtml(feedback) {
+    return `
+      <div class="flex gap-8 wrap" style="align-items:center;">
+        <span class="badge ${CONFORMIDAD_BADGE[feedback.conformidad] || "sin-dato"}">${CONFORMIDAD_LABEL[feedback.conformidad] || "—"}</span>
+        <span class="badge ${npsBadgeCls(feedback.nps)}">NPS ${feedback.nps}</span>
+        <span class="faint" style="font-size:11px;">Calificado ${Util.fmtFecha(feedback.fecha)}</span>
+      </div>
+      ${feedback.comentario ? `<p class="faint" style="margin:8px 0 0; font-size:12.5px; font-style:italic;">"${feedback.comentario}"</p>` : ""}`;
+  }
+
+  function feedbackFormHtml(v) {
+    const draft = feedbackDraft[v.id] || {};
+    return `
+      <div style="font-size:12.5px; font-weight:700; color:var(--navy); margin-bottom:10px;">Califica esta entrega</div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>¿Qué tan probable es que recomiendes este servicio? (NPS)</label>
+        <div class="pill-group">
+          ${[0,1,2,3,4,5,6,7,8,9,10].map((n) => `<button type="button" class="pill nps-pill ${draft.nps === n ? "active" : ""}" data-viaje="${v.id}" data-valor="${n}">${n}</button>`).join("")}
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Conformidad del pedido</label>
+        <div class="pill-group">
+          <button type="button" class="pill conformidad-pill ${draft.conformidad === "conforme" ? "active" : ""}" data-viaje="${v.id}" data-valor="conforme">✓ Conforme</button>
+          <button type="button" class="pill conformidad-pill ${draft.conformidad === "observaciones" ? "active" : ""}" data-viaje="${v.id}" data-valor="observaciones">⚠ Con observaciones</button>
+          <button type="button" class="pill conformidad-pill ${draft.conformidad === "no_conforme" ? "active" : ""}" data-viaje="${v.id}" data-valor="no_conforme">✕ No conforme</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Comentario (opcional)</label>
+        <textarea class="comentario-input" data-viaje="${v.id}" rows="2" placeholder="Cuéntanos cómo fue la entrega…">${draft.comentario || ""}</textarea>
+      </div>
+      <button class="btn btn-primary btn-sm" data-enviar-feedback="${v.id}" type="button">Enviar calificación</button>`;
+  }
+
+  function pedidoCardHtml(v, viajesDestino) {
+    const finalizado = v.estado === "Finalizado";
+    const eta = Store.estimarETA(v, viajesDestino);
+    const mortalidad = v.granja?.mortalidad;
+    const feedback = v.granja?.feedback;
+
+    return `
+      <div class="card pedido-card">
+        <div class="card-head">
+          <h3>Pedido ${v.dtSap}</h3>
+          <span class="hint">${Util.fmtFecha(v.fecha)}</span>
+        </div>
+        <div class="grid grid-3" style="gap:10px; font-size:12.5px;">
+          <div><span class="faint">Origen</span><br/><strong>${v.planta}</strong></div>
+          <div><span class="faint">Cantidad</span><br/><strong>${(+v.cantidad || 0).toLocaleString("es-PE")} pollitos BB</strong></div>
+          <div><span class="faint">${finalizado ? "Entregado" : "ETA estimado"}</span><br/><strong class="mono">${finalizado ? Util.fmtHora(v.horaLlegadaReal) : (eta ? Util.fmtHora(eta) : "—")}</strong></div>
+        </div>
+
+        ${pedidoStepperHtml(v.estado)}
+
+        ${finalizado ? `
+          <div class="divider" style="margin:14px 0 10px;"></div>
+          <div class="grid grid-2" style="gap:10px; margin-bottom:12px;">
+            <div class="kpi-card" style="gap:4px;">
+              <div class="kpi-label">Mortalidad de transporte</div>
+              <div class="kpi-value ${mortalidad != null && mortalidad > 0.4 ? "heat" : "cool"}" style="font-size:20px;">${mortalidad != null ? mortalidad.toFixed(2) + "%" : "—"}</div>
+            </div>
+            <div class="kpi-card" style="gap:4px;">
+              <div class="kpi-label">Galpón recepcionado</div>
+              <div class="kpi-value" style="font-size:20px;">${v.granja?.loteRecepcion?.galpon || "—"}</div>
+            </div>
+          </div>
+          ${feedback ? feedbackReadonlyHtml(feedback) : feedbackFormHtml(v)}
+        ` : ""}
+      </div>`;
+  }
+
+  window.initPage = function () {
+    document.getElementById("page-content").appendChild(
+      document.getElementById("tpl-content").content.cloneNode(true)
+    );
+
+    const selectPlantel = document.getElementById("select-plantel");
+    const plantelesOrdenados = Object.entries(Store.UBICACION_POR_DESTINO)
+      .sort((a, b) => (a[1].codigoPlantel || "").localeCompare(b[1].codigoPlantel || ""));
+    selectPlantel.innerHTML = plantelesOrdenados
+      .map(([nombre, info]) => `<option value="${nombre}">${info.codigoPlantel || "—"} · ${nombre}</option>`)
+      .join("");
+
+    const preplantel = Util.qs("plantel");
+    if (preplantel && Store.UBICACION_POR_DESTINO[preplantel]) selectPlantel.value = preplantel;
+
+    function render() {
+      const plantel = selectPlantel.value;
+      const todos = Store.getViajes();
+      const pedidos = todos
+        .filter((v) => v.destino1 === plantel)
+        .sort((a, b) => (b.fecha + (b.horaSalidaPlan || "")).localeCompare(a.fecha + (a.horaSalidaPlan || "")));
+
+      const enCamino = pedidos.filter((v) => v.estado === "En Tránsito").length;
+      const entregados = pedidos.filter((v) => v.estado === "Finalizado");
+      const npsValores = entregados.map((v) => v.granja?.feedback?.nps).filter((n) => n != null);
+      const npsProm = npsValores.length ? +Store.promedio(npsValores).toFixed(1) : null;
+
+      document.getElementById("pedidos-resumen").innerHTML = `
+        <div class="card kpi-card">
+          <div class="kpi-label">Pedidos totales</div>
+          <div class="kpi-value">${pedidos.length}</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">En camino</div>
+          <div class="kpi-value warn">${enCamino}</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">Entregados</div>
+          <div class="kpi-value cool">${entregados.length}</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">NPS promedio</div>
+          <div class="kpi-value ${npsProm != null && npsProm < 7 ? "heat" : "cool"}">${npsProm != null ? npsProm : "—"}</div>
+        </div>`;
+
+      const cont = document.getElementById("pedidos-lista");
+      cont.innerHTML = pedidos.length
+        ? pedidos.map((v) => pedidoCardHtml(v, todos)).join("")
+        : `<div class="card empty-state">Este plantel no tiene pedidos registrados todavía.</div>`;
+    }
+
+    document.getElementById("pedidos-lista").addEventListener("click", (e) => {
+      const npsBtn = e.target.closest(".nps-pill");
+      if (npsBtn) {
+        const vid = npsBtn.getAttribute("data-viaje");
+        feedbackDraft[vid] = { ...feedbackDraft[vid], nps: parseInt(npsBtn.getAttribute("data-valor"), 10) };
+        render();
+        return;
+      }
+      const confBtn = e.target.closest(".conformidad-pill");
+      if (confBtn) {
+        const vid = confBtn.getAttribute("data-viaje");
+        feedbackDraft[vid] = { ...feedbackDraft[vid], conformidad: confBtn.getAttribute("data-valor") };
+        render();
+        return;
+      }
+      const enviarBtn = e.target.closest("[data-enviar-feedback]");
+      if (enviarBtn) {
+        const vid = enviarBtn.getAttribute("data-enviar-feedback");
+        const draft = feedbackDraft[vid] || {};
+        if (draft.nps == null || !draft.conformidad) {
+          alert("Selecciona un puntaje NPS y la conformidad del pedido antes de enviar.");
+          return;
+        }
+        const v = Store.getViaje(vid);
+        const granja = v.granja || {};
+        granja.feedback = {
+          nps: draft.nps,
+          conformidad: draft.conformidad,
+          comentario: (draft.comentario || "").trim(),
+          fecha: new Date().toISOString().slice(0, 10),
+        };
+        Store.updateViaje(vid, { granja });
+        delete feedbackDraft[vid];
+        render();
+      }
+    });
+
+    document.getElementById("pedidos-lista").addEventListener("input", (e) => {
+      if (!e.target.classList.contains("comentario-input")) return;
+      const vid = e.target.getAttribute("data-viaje");
+      feedbackDraft[vid] = { ...feedbackDraft[vid], comentario: e.target.value };
+    });
+
+    selectPlantel.addEventListener("change", render);
+    render();
+  };
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>
